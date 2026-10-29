@@ -208,11 +208,11 @@ if mode == "🏭 3PL Warehouse Intake Station":
         "CASE-05-COSMETIC-WEAR: Heavy Abrasions & Scratches (Grade C)",
         "CASE-06-LIQUID-DAMAGE: Liquid Ingress (Triggered Crimson LDI in Audio Port)",
         "CASE-07-COVERT-SWAP: Covert Sandwich Swap (Top OEM vs Fake Oblique Flank)",
-        "REAL-01: Real Sony XM4/XM5 (Fractured Swivel Hinge Bracket)",
-        "REAL-02: Real Apple AirPods Max (Disassembled Internal Drivers)",
-        "REAL-03: Real Bose QuietComfort (Authentic Full Carry Case Kit)",
-        "REAL-04: Real Dyson Vacuum (Cracked Housing & Broken Trigger)",
-        "REAL-05: Real Bait-and-Switch (Vintage Sony MDR Returned in XM5 Box)",
+        "REAL-01: Pillar 1 (AirReps Clone Swap - Shenzhen Superclone in OEM Box)",
+        "REAL-02: Pillar 1 (Walkman Blog Clone - Sony XM5 Logo Kerning & Seam Defect)",
+        "REAL-03: Pillar 2 (eBay Resale #7000 - Scratched Earcup & Broken Hinge)",
+        "REAL-04: Pillar 3 (Pallet Liquidation - Unboxing Video Frame & Crushed Packaging)",
+        "REAL-05: Pillar 4 (Customer 1-Star Review - Missing BOM Accessories & Snapped Band)",
         "CUSTOM: Upload Custom Return Photos",
     ]
 
@@ -299,38 +299,38 @@ if mode == "🏭 3PL Warehouse Intake Station":
         overhead_path = str(case.overhead_image_path)
         oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
     elif selected_preset.startswith("REAL-01"):
-        sku_id = "SKU-SONY-WH1000XM5-BLK"
-        rma_num = "RMA-REAL-XM5-01"
-        box_barcode = "SN-SNY-8842109"
-        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-01-SONY-BROKEN-HINGE"
+        sku_id = "SKU-APPLE-APM-SLV"
+        rma_num = "RMA-AIRREPS-CLONE-01"
+        box_barcode = "H1CDG0JTP3W9"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-01-CLONE-SWAP-AIRREPS"
         chassis_path = str(base_dir / "chassis.jpg")
         oblique_path = str(base_dir / "detail.jpg")
     elif selected_preset.startswith("REAL-02"):
-        sku_id = "SKU-APPLE-APM-SLV"
-        rma_num = "RMA-REAL-APM-02"
-        box_barcode = "H1CDG0JTP3W9"
-        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-02-AIRPODS-MAX-DISASSEMBLED"
+        sku_id = "SKU-SONY-WH1000XM5-BLK"
+        rma_num = "RMA-WALKMAN-CLONE-02"
+        box_barcode = "SN-SNY-8842109"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-02-SONY-CLONE-TEARDOWN"
         chassis_path = str(base_dir / "chassis.jpg")
         oblique_path = str(base_dir / "detail.jpg")
     elif selected_preset.startswith("REAL-03"):
-        sku_id = "SKU-BOSE-QCU-BLK"
-        rma_num = "RMA-REAL-BOSE-03"
-        box_barcode = "084123456789012"
-        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-03-BOSE-QC-AUTHENTIC-KIT"
+        sku_id = "SKU-SONY-WH1000XM5-BLK"
+        rma_num = "RMA-EBAY-PARTS-03"
+        box_barcode = "SN-SNY-8842109"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-03-EBAY-BROKEN-HINGE"
         chassis_path = str(base_dir / "chassis.jpg")
-        tray_path = str(base_dir / "detail.jpg")
+        oblique_path = str(base_dir / "detail.jpg")
     elif selected_preset.startswith("REAL-04"):
-        sku_id = "SKU-DYSON-V15-DET"
-        rma_num = "RMA-REAL-DYSON-04"
-        box_barcode = "SN-DYS-9941208"
-        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-04-DYSON-BROKEN-VACUUM"
+        sku_id = "SKU-SONY-WH1000XM5-BLK"
+        rma_num = "RMA-PALLET-UNBOX-04"
+        box_barcode = "SN-SNY-8842109"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-04-PALLET-UNBOXING-FRAME"
         chassis_path = str(base_dir / "chassis.jpg")
         oblique_path = str(base_dir / "detail.jpg")
     elif selected_preset.startswith("REAL-05"):
-        sku_id = "SKU-SONY-WH1000XM5-BLK"
-        rma_num = "RMA-REAL-SWAP-05"
-        box_barcode = "SN-SNY-8842109"
-        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-05-SWAP-MDR-FOR-XM5"
+        sku_id = "SKU-APPLE-APM-SLV"
+        rma_num = "RMA-CUSTOMER-REVIEW-05"
+        box_barcode = "H1CDG0JTP3W9"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-05-CUSTOMER-EVIDENCE-MISSING-BOM"
         chassis_path = str(base_dir / "chassis.jpg")
         oblique_path = str(base_dir / "detail.jpg")
 
@@ -804,8 +804,9 @@ elif mode == "🗂️ SKU Catalog & Reference Vectors":
 elif mode == "📹 Real-World Harvested CV Dataset & Video Streams":
     st.title("📹 Real-World Consumer Return CV Dataset & Video Streams")
     st.markdown(
-        "> **Authentic Physical Defect Photography & Live Inspection Streams**  \n"
-        "> *Macro-lens DSLR imagery and video feeds from iFixit teardown guides and Wikimedia Commons.*"
+        "> **Authentic 4-Pillar Consumer Electronics Return Fraud Dataset & Video Streams**  \n"
+        "> *Harvested from Counterfeit Communities (AirReps / Walkman Blog), Secondary Resale (eBay / Swappa), "
+        "4K Teardown & Pallet Liquidation Streams (yt-dlp), and 1-Star Customer Review Evidence.*"
     )
 
     manifest_path = Path(__file__).resolve().parent.parent / "storage" / "real_world_harvest_manifest.json"
@@ -817,74 +818,82 @@ elif mode == "📹 Real-World Harvested CV Dataset & Video Streams":
 
         records = manifest_data.get("records", [])
 
-        # Top Metric Cards
+        # Top Metric Cards (4-Pillars)
         col_m1, col_m2, col_m3, col_m4 = st.columns(4)
         with col_m1:
             st.metric("Total Harvested Assets", len(records))
         with col_m2:
-            sources = set(r.get("source") for r in records if "source" in r)
-            st.metric("Data Sources", len(sources))
+            p1_p2 = len([r for r in records if "Pillar 1" in r.get("pillar", "") or "Pillar 2" in r.get("pillar", "")])
+            st.metric("Clones & Resale (P1+P2)", p1_p2)
         with col_m3:
-            video_frames = [r for r in records if r.get("condition_type") == "VIDEO_STREAM_FRAME"]
-            st.metric("Video Stream Frames", len(video_frames))
+            p3_frames = [r for r in records if "Pillar 3" in r.get("pillar", "") or r.get("defect_type") == "VIDEO_STREAM_KEYFRAME"]
+            st.metric("Video Stream Frames (P3)", len(p3_frames))
         with col_m4:
-            skus_covered = set(r.get("sku_id") for r in records if r.get("sku_id"))
-            st.metric("SKUs Profiled", len(skus_covered))
+            p4_reviews = len([r for r in records if "Pillar 4" in r.get("pillar", "")])
+            st.metric("Review Evidence (P4)", p4_reviews)
 
         st.markdown("---")
 
         tab_gallery, tab_video, tab_cases = st.tabs([
-            "🖼️ Authentic Defect Gallery",
+            "🏛️ 4-Pillar Defect Gallery",
             "🎥 Video Stream Keyframes",
             "📦 Assembled Return Cases",
         ])
 
         with tab_gallery:
-            st.subheader("Authentic Macro Defect Photography")
-            col_f1, col_f2 = st.columns(2)
+            st.subheader("Authentic Physical Defect & Counterfeit Photography")
+            col_f1, col_f2, col_f3 = st.columns(3)
             with col_f1:
-                cond_filter = st.selectbox(
-                    "Filter Condition Type:",
-                    ["ALL"] + sorted(list(set(r.get("condition_type", "") for r in records if r.get("condition_type")))),
-                )
+                pillar_options = ["ALL"] + sorted(list(set(r.get("pillar", "") for r in records if r.get("pillar"))))
+                pillar_filter = st.selectbox("Filter Pillar:", pillar_options)
             with col_f2:
-                sku_filter = st.selectbox(
-                    "Filter SKU:",
-                    ["ALL"] + sorted(list(set(r.get("sku_id", "") for r in records if r.get("sku_id")))),
-                )
+                defect_options = ["ALL"] + sorted(list(set(r.get("defect_type", "") for r in records if r.get("defect_type"))))
+                defect_filter = st.selectbox("Filter Defect Type:", defect_options)
+            with col_f3:
+                sku_options = ["ALL"] + sorted(list(set(r.get("sku_id", "") for r in records if r.get("sku_id"))))
+                sku_filter = st.selectbox("Filter SKU:", sku_options)
 
             filtered = records
-            if cond_filter != "ALL":
-                filtered = [r for r in filtered if r.get("condition_type") == cond_filter]
+            if pillar_filter != "ALL":
+                filtered = [r for r in filtered if r.get("pillar") == pillar_filter]
+            if defect_filter != "ALL":
+                filtered = [r for r in filtered if r.get("defect_type") == defect_filter]
             if sku_filter != "ALL":
                 filtered = [r for r in filtered if r.get("sku_id") == sku_filter]
 
-            st.caption(f"Showing {len(filtered)} matching authentic assets:")
+            st.caption(f"Showing **{len(filtered)}** matching authentic assets:")
 
             cols = st.columns(3)
-            for i, rec in enumerate(filtered[:18]):
+            for i, rec in enumerate(filtered):
                 rel_p = rec.get("path")
                 abs_p = Path(__file__).resolve().parent.parent / rel_p
                 with cols[i % 3]:
                     if abs_p.exists():
-                        st.image(str(abs_p), caption=f"{rec.get('condition_type')} ({rec.get('width')}x{rec.get('height')})")
-                        st.caption(f"**Source:** {rec.get('source')} | `{rec.get('sku_id', 'N/A')}`")
-                        with st.expander("Asset Metadata"):
+                        st.image(str(abs_p), caption=f"{rec.get('defect_type')} ({rec.get('width')}x{rec.get('height')})")
+                        st.caption(f"**Pillar:** {rec.get('pillar', 'N/A')}\n\n**Source:** {rec.get('source')} | `{rec.get('sku_id', 'N/A')}`")
+                        with st.expander("Asset Details"):
                             st.json(rec)
 
         with tab_video:
             st.subheader("Decoded Video Stream Inspection Frames")
-            st.markdown("Frames extracted via OpenCV `cv2.VideoCapture` with Laplacian blur sharpness verification:")
+            st.markdown(
+                "Frames extracted via OpenCV `cv2.VideoCapture` at 1 fps from real liquidation unboxings "
+                "and hardware teardown streams with Laplacian blur sharpness verification (threshold $\\text{Var}(\\nabla^2 I) > 50$):"
+            )
 
-            video_records = [r for r in records if r.get("condition_type") == "VIDEO_STREAM_FRAME"]
+            video_records = [r for r in records if "Pillar 3" in r.get("pillar", "") or r.get("defect_type") == "VIDEO_STREAM_KEYFRAME"]
             vcols = st.columns(3)
             for i, vrec in enumerate(video_records):
                 v_rel = vrec.get("path")
                 v_abs = Path(__file__).resolve().parent.parent / v_rel
                 with vcols[i % 3]:
                     if v_abs.exists():
-                        st.image(str(v_abs), caption=f"{vrec.get('feed_id')} (Frame #{i+1})")
-                        st.caption(f"**Sharpness Score:** `{vrec.get('laplacian_sharpness')}` | Resolution: `{vrec.get('width')}x{vrec.get('height')}`")
+                        st.image(str(v_abs), caption=f"{vrec.get('feed_id')} (Frame #{vrec.get('frame_index', i+1)})")
+                        st.caption(
+                            f"**Sharpness Score:** `{vrec.get('laplacian_sharpness')}` | "
+                            f"Resolution: `{vrec.get('width')}x{vrec.get('height')}`\n\n"
+                            f"**Stream:** {vrec.get('source')}"
+                        )
 
         with tab_cases:
             st.subheader("5 Assembled Production Return Test Cases")

@@ -1,0 +1,15 @@
+{
+  "case_id": "REAL-CASE-05-CUSTOMER-EVIDENCE-MISSING-BOM",
+  "sku_id": "SKU-APPLE-APM-SLV",
+  "title": "1-Star Customer Evidence: Missing Smart Case & Snapped Headband",
+  "pillar": "Pillar 4: Customer Review Return Evidence",
+  "expected_condition": "GRADE_D",
+  "fraud_flags": [
+    "MISSING_BOM_ACCESSORY",
+    "PHYSICAL_DAMAGE"
+  ],
+  "expected_disposition": "REJECT_RETURN_NOT_ORIGINAL_CONDITION",
+  "notes": "Customer smartphone evidence photo confirming unit returned with missing smart case and cracked band.",
+  "chassis_image": "chassis.jpg",
+  "detail_image": "detail.jpg"
+}

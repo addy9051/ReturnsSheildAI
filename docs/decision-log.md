@@ -360,31 +360,32 @@ Implemented an industrial multi-angle volumetric stereo inspection suite (`core/
 
 
 
----
+----
 
-## ADR-014: Authentic Consumer Electronics Return Harvester & Teardown Video Stream Pipeline
+## ADR-014: 4-Pillar Real-World Return Fraud Harvester & Video Stream Pipeline
 
 - **Date:** 2026-10-30
 - **Status:** Accepted & Implemented
-- **Module:** \scripts/harvest_real_world_returns.py\, \	ests/test_real_world_harvester.py\, \storage/real_world_harvest_manifest.json
+- **Module:** scripts/harvest_real_world_returns.py, 	ests/test_real_world_harvester.py, storage/real_world_harvest_manifest.json
+
 ### Context
-Standard computer vision anomaly datasets (MVTec AD, VisA) focus on industrial parts (screws, hazelnuts, raw printed circuit boards), which do not represent consumer electronics returns (\-\,000 headphones, cordless vacuums, and power tools). Furthermore, synthetic 2D sketches or procedurally drawn defects do not capture authentic physical fracture mechanics, worn pleather patina, foam decay, or covert bait-and-switch substitutions.
+Standard computer vision anomaly datasets (MVTec AD, VisA) focus on industrial parts (screws, hazelnuts, raw printed circuit boards), which do not represent consumer electronics returns (–,000 headphones, cordless vacuums, and power tools). Furthermore, synthetic 2D sketches or procedurally drawn defects do not capture authentic physical fracture mechanics, Shenzhen 1:1 clone typography flaws, or covert bait-and-switch substitutions.
 
 ### The Block
 Warehouse intake models must be verified against actual physical returns:
-1. Authentic stress fractures along plastic swivel hinge brackets (e.g. Sony WH-1000XM4/XM5).
-2. Genuine pleather peeling, oil staining, and torn scrim mats on acoustic ear cushions.
-3. Tampered driver cavities and removed acoustic dampeners (e.g. Apple AirPods Max teardowns).
-4. Bait-and-switch impostor returns where vintage/budget models (Sony MDR-7506, WH-CH510) are returned in modern retail packaging.
-5. Live video camera feeds requiring keyframe extraction and blur rejection.
+1. Shenzhen 1:1 superclones (AirPods Max, Sony XM5) with subtle injection mold seams, decoy nesting packaging, and laser serial font misprints.
+2. Authentic secondary market damage (snapped pivot hinges, crushed earcups, missing smart cases) photographed on real smartphone cameras.
+3. Live video camera feeds requiring keyframe extraction and blur rejection from real warehouse liquidation unboxings and teardowns.
+4. Real 1-star customer return evidence showing missing BOM cables, chargers, and crushed retail packaging.
 
 ### The Fix
-Built a multi-source harvester pipeline (\scripts/harvest_real_world_returns.py\):
-1. **iFixit Teardown & Repair Guides:** Harvested 42 high-resolution (up to 1600x1200) macro photos across swivel replacement, earpad replacement, teardown driver extraction, and broken trigger guides.
-2. **Wikimedia Commons Open DSLR Assets:** Harvested 8 authentic DSLR photos (up to 6048x4024) of pristine chassis, carry case BOMs, broken vacuum cleaners, and genuine swap impostors.
-3. **OpenCV Video Stream Extractor:** Decodes frames from product rotation and warehouse package handling video streams, applying Laplacian blur variance filtering (\Var(Laplacian) > 100\) to reject motion-blurred frames.
-4. **Structured Return Cases:** Compiled 5 production return scenarios in \storage/sample_returns/\ (\REAL-CASE-01\ through \REAL-CASE-05\) with complete triage manifests.
-5. **Interactive Dashboard:** Added \U0001f4f9 Real-World Harvested CV Dataset & Video Streams\ mode to Streamlit workstation for live asset browsing, filtering, and case inspection.
+Implemented a targeted 4-Pillar harvester pipeline (scripts/harvest_real_world_returns.py):
+1. **Pillar 1: Counterfeit & Replica Communities:** Harvests macro comparison photography from irreps.info / irpodsreplicas.com and 	hewalkmanblog.com capturing Shenzhen 1:1 clone tells (headband mold seams, logo font kerning misprints, plastic pivot hinges, barcode font misalignment, decoy nesting packaging).
+2. **Pillar 2: Secondary Resale Marketplaces:** Harvests real used & broken smartphone camera photography from eBay (Condition 7000 'For parts or not working' and Condition 3000 'Used / Pre-owned') and Swappa (snapped pivot brackets, scratched matte earcups, stretched headbands, missing smart cases).
+3. **Pillar 3: Real Video Streams via yt-dlp:** Pulls section clips from YouTube teardown and pallet liquidation streams using yt-dlp with Node.js and ffmpeg, extracting keyframes at 1 fps with Laplacian blur variance filtering ($\text{Var}(\nabla^2 I) > 50$).
+4. **Pillar 4: Customer Review Return Evidence:** Ingests genuine 1-star customer return evidence photographs uploaded by buyers (e.g. Amazon customer review photos capturing missing BOM cables, scratched housings, snapped headbands).
+5. **Structured Return Cases:** Compiled 5 production return scenarios in storage/sample_returns/ (REAL-CASE-01 through REAL-CASE-05) with complete triage manifests.
+6. **Interactive Dashboard:** Updated 📹 Real-World Harvested CV Dataset & Video Streams mode in Streamlit for 4-pillar asset browsing, sharpness inspection, and test case triage.
 
 ### The Lesson
-> *Real return fraud occurs at the intersection of consumer wear, physical fracture, and covert component substitution. Harvesting authentic teardown documentation and verified open photography provides the ground-truth benchmark necessary for production triage without relying on artificial sketches or synthetic stand-ins.*
+> *Real return fraud occurs at the intersection of consumer wear, physical fracture, and covert component substitution. Harvesting authentic community replica teardowns, secondary resale damage, 4K liquidation video streams, and customer return evidence provides the ground-truth benchmark necessary for production triage without relying on artificial sketches or synthetic stand-ins.*

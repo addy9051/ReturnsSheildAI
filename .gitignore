@@ -48,9 +48,15 @@ storage/models/*.engine
 storage/models/*.plan
 !storage/models/.gitkeep
 
+
 # Webhook runtime data
 storage/webhooks.json
 storage/webhook_deliveries.json
+
+# Large video streams
+storage/real_videos/
+*.mp4
+*.webm
 
 
 

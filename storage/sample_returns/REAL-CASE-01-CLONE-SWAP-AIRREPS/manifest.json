@@ -1,0 +1,15 @@
+{
+  "case_id": "REAL-CASE-01-CLONE-SWAP-AIRREPS",
+  "sku_id": "SKU-APPLE-APM-SLV",
+  "title": "AirReps Bait-and-Switch: Shenzhen Superclone Returned in OEM Box",
+  "pillar": "Pillar 1: Counterfeit & Replica Communities",
+  "expected_condition": "FRAUD_HOLD",
+  "fraud_flags": [
+    "BAIT_AND_SWITCH",
+    "COUNTERFEIT_CLONE"
+  ],
+  "expected_disposition": "REJECT_FRAUD_HOLD",
+  "notes": "Customer kept authentic AirPods Max and returned 1:1 Shenzhen Airoha replica in OEM box.",
+  "chassis_image": "chassis.jpg",
+  "detail_image": "detail.jpg"
+}

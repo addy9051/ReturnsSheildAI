@@ -1,0 +1,15 @@
+{
+  "case_id": "REAL-CASE-02-SONY-CLONE-TEARDOWN",
+  "sku_id": "SKU-SONY-WH1000XM5-BLK",
+  "title": "Sony WH-1000XM5 Clone with Font Kerning & Molding Seam Tamper",
+  "pillar": "Pillar 1: Counterfeit & Replica Communities",
+  "expected_condition": "FRAUD_HOLD",
+  "fraud_flags": [
+    "BAIT_AND_SWITCH",
+    "LOGO_TAMPER"
+  ],
+  "expected_disposition": "REJECT_FRAUD_HOLD",
+  "notes": "Walkman Blog teardown clone with micro-seam slider flaws and misprinted Sony logo kerning.",
+  "chassis_image": "chassis.jpg",
+  "detail_image": "detail.jpg"
+}

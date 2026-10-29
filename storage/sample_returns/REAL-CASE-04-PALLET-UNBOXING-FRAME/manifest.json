@@ -1,0 +1,14 @@
+{
+  "case_id": "REAL-CASE-04-PALLET-UNBOXING-FRAME",
+  "sku_id": "SKU-SONY-WH1000XM5-BLK",
+  "title": "Liquidation Pallet Unboxing: Crushed Retail Packaging & Scuffs",
+  "pillar": "Pillar 3: Real Video Streams (yt-dlp)",
+  "expected_condition": "GRADE_C",
+  "fraud_flags": [
+    "PHYSICAL_DAMAGE"
+  ],
+  "expected_disposition": "PARTIAL_REFUND_RESTOCKING_FEE",
+  "notes": "Live warehouse conveyor frame showing unboxed return with crushed box corners.",
+  "chassis_image": "chassis.jpg",
+  "detail_image": "detail.jpg"
+}

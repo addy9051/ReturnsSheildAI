@@ -275,5 +275,30 @@
       "brand": "Dyson",
       "swap_attack_target": "Older Dyson V10/V11 or non-laser cleaner head swap"
     }
+  },
+  "SKU-API-TEST-DEVICE": {
+    "sku_id": "SKU-API-TEST-DEVICE",
+    "title": "API Test ANC Earbuds",
+    "category": "Audio",
+    "msrp": 199.99,
+    "restocking_fee_rate": 0.15,
+    "expected_serial_regex": "^SN-TEST-[0-9]{6}$",
+    "reference_image_paths": [],
+    "bom": [
+      {
+        "item_id": "case-charging",
+        "name": "Wireless Charging Case",
+        "category": "case",
+        "required_qty": 1,
+        "deduction_fee": 50.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      }
+    ],
+    "similarity_threshold": 0.85,
+    "created_at": "2026-10-29T20:39:51.601795",
+    "updated_at": "2026-10-29T20:39:51.601795",
+    "metadata": {}
   }
 }

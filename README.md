@@ -249,12 +249,15 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Multi-view feature fusion ($90^\circ$ orthogonal overhead + $45^\circ$ oblique flank) exposing covert chassis swaps.
   - Integration into triage pipeline, financial disposition deductions, and multipart image upload API.
   - 6 unit & integration tests (`tests/test_volumetric_inspector.py`).
-- [x] **Phase 11: Real-World Consumer Return Harvester & Video Stream Pipeline**
-  - Multi-source scraper harvesting authentic macro photography and video streams from iFixit repair guides and Wikimedia Commons (`scripts/harvest_real_world_returns.py`).
-  - 64 indexed authentic assets covering genuine broken swivel hinges, worn pleather cushions, internal driver arrays, and cracked appliance housings across Sony XM4/XM5, Apple AirPods Max, Bose QC, and Dyson V15.
-  - OpenCV video stream keyframe extractor with Laplacian blur variance filtering ($\text{Var}(\nabla^2 I) > 100$).
+- [x] **Phase 11: 4-Pillar Real-World Return Fraud Harvester & Video Stream Pipeline**
+  - Production multi-source data harvester adhering to the 4-Pillar Return Fraud Strategy (`scripts/harvest_real_world_returns.py`):
+    - **Pillar 1 (Counterfeit & Replica Communities):** Shenzhen 1:1 clone tells (AirReps / Walkman Blog) covering injection mold seams, logo kerning misprints, plastic pivot hinges, barcode font misalignment, and decoy nesting packaging.
+    - **Pillar 2 (Secondary Resale Marketplaces):** eBay (Condition 7000 / 3000) and Swappa real smartphone camera photography of snapped pivot brackets, scratched matte finish, and missing accessories.
+    - **Pillar 3 (Real 4K Video Streams via `yt-dlp`):** Teardown & warehouse pallet unboxing video streams extracted with OpenCV `cv2.VideoCapture` keyframe extraction at 1 fps and Laplacian blur variance filtering ($\text{Var}(\nabla^2 I) > 50$).
+    - **Pillar 4 (Customer Review Return Evidence):** 1-star & 2-star customer return evidence photographs capturing missing BOM chargers/cables and snapped headband fractures.
+  - 32 indexed authentic assets cataloged in `storage/real_world_harvest_manifest.json` (v2.0.0).
   - 5 assembled production return test cases in `storage/sample_returns/` with complete triage manifests (`REAL-CASE-01` through `REAL-CASE-05`).
-  - Interactive Streamlit dashboard operating mode: `📹 Real-World Harvested CV Dataset & Video Streams`.
+  - Interactive Streamlit dashboard operating mode: `📹 Real-World Harvested CV Dataset & Video Streams` with 4-pillar filtering and video keyframe sharpness inspection.
   - 4 unit and integration tests (`tests/test_real_world_harvester.py`).
 
 ---

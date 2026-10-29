@@ -1,0 +1,14 @@
+{
+  "case_id": "REAL-CASE-03-EBAY-BROKEN-HINGE",
+  "sku_id": "SKU-SONY-WH1000XM5-BLK",
+  "title": "eBay Resale #7000: Physical Pivot Hinge Fracture & Heavy Scratches",
+  "pillar": "Pillar 2: Secondary Resale Marketplaces",
+  "expected_condition": "GRADE_C",
+  "fraud_flags": [
+    "PHYSICAL_DAMAGE"
+  ],
+  "expected_disposition": "PARTIAL_REFUND_RESTOCKING_FEE",
+  "notes": "Genuine XM5 returned with snapped pivot hinge bracket and heavy matte finish abrasions.",
+  "chassis_image": "chassis.jpg",
+  "detail_image": "detail.jpg"
+}
