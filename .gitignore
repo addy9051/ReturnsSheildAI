@@ -31,4 +31,7 @@ Thumbs.db
 *.log
 storage/heatmaps/*.png
 !storage/heatmaps/.gitkeep
+storage/certificates/*.json
+!storage/certificates/.gitkeep
+storage/synthetic_demo/
 
