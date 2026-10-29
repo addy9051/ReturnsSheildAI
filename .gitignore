@@ -48,4 +48,9 @@ storage/models/*.engine
 storage/models/*.plan
 !storage/models/.gitkeep
 
+# Webhook runtime data
+storage/webhooks.json
+storage/webhook_deliveries.json
+
+
 

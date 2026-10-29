@@ -7,7 +7,7 @@
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 75 Passed](https://img.shields.io/badge/Tests-75%20Passed%20(68%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 86 Passed](https://img.shields.io/badge/Tests-86%20Passed%20(79%20Py%20%2B%207%20Rust)-success.svg)](tests/)
 
 ---
 
@@ -232,6 +232,13 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Tier 2 FP8 (E4M3) ONNX Opset 19+ export and TensorRT compilation engine (`scripts/export_fp8_tensorrt.py`).
   - Pure NumPy/PIL edge inference engine with zero PyTorch runtime dependencies (`core/edge_inference.py`).
   - Parity and architecture test suite with 6 tests (`tests/test_quantization.py`).
+- [x] **Phase 9: Real-Time E-Commerce ERP & Platform Webhooks**
+  - Canonical event normalization & subscription lifecycle management (`core/erp_schemas.py`, `core/webhook_dispatcher.py`).
+  - Cryptographic HMAC-SHA256 signing (Shopify Base64 and standard hex) with 300-second anti-replay tolerance window (`core/webhook_security.py`).
+  - Platform payload adapters for Shopify Admin REST (`refunds.json`), Narvar, Amazon SAFE-T, and Flipkart SPF (`core/erp_adapters.py`).
+  - Asynchronous dispatch via `httpx` with exponential backoff and persistent delivery audit trail.
+  - FastAPI REST endpoints for webhook subscription CRUD, delivery inspection, and inbound verification (`/webhooks/inbound/{platform}`).
+  - 11 unit & integration tests (`tests/test_webhooks.py`).
 
 ---
 

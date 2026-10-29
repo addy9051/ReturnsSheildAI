@@ -275,6 +275,39 @@ Implemented a dual-tier quantization architecture matching hardware execution ca
 ### The Lesson
 > *Quantization is hardware-architecture dependent: align the numerical representation with the native execution units of the target machine. Use INT8 for universal edge and mobile deployment where CPU SIMD is king, and reserve FP8 / TensorRT for modern datacenter GPU clusters where 4th-Gen Tensor Cores thrive.*
 
+---
+
+## ADR-012: Real-Time E-Commerce ERP & Platform Webhooks (Shopify, Narvar, Amazon SAFE-T, Flipkart SPF)
+
+- **Date:** 2026-10-30
+- **Status:** Accepted & Implemented
+- **Module:** `core/erp_schemas.py`, `core/webhook_security.py`, `core/erp_adapters.py`, `core/webhook_dispatcher.py`, `app/api.py`, `tests/test_webhooks.py`
+
+### Context
+In automated reverse-logistics, physical triage verdicts (`FULL_REFUND`, `PARTIAL_REFUND`, `REJECT_FRAUD_HOLD`, `MANUAL_SECONDARY_REVIEW`) must synchronize instantaneously with e-commerce store backends (Shopify), post-purchase platforms (Narvar), and marketplace dispute centers (Amazon Seller Central SAFE-T, Flipkart SPF). Manually re-entering warehouse triage results into customer support consoles incurs significant human latency, delays valid customer refunds, and risks missed filing windows for fraud claims.
+
+### The Block
+Each e-commerce platform enforces distinct payload schemas and cryptographic authentication mechanisms. For example, Shopify requires Base64-encoded HMAC-SHA256 (`X-Shopify-Hmac-SHA256`) and specific `refund_line_items` restock directives, whereas Stripe/GitHub-style webhooks use hex-encoded HMAC-SHA256 with timestamp replay windows (`X-ReturnShield-Signature`). Furthermore, dispatching outbound HTTP requests synchronously during physical triage would violate the sub-3-second station SLA if partner ERP endpoints suffer network latency or downtime.
+
+### The Fix
+Implemented a unified, asynchronous ERP webhook engine with cryptographic security and platform-native adapters:
+1. **Official Security & Anti-Replay Guardrails (`core/webhook_security.py`):**
+   - **Shopify Base64 HMAC:** Exact compliance with official Shopify developer documentation (`base64(HMAC-SHA256(raw_bytes, secret))`).
+   - **Standard Hex HMAC:** `sha256=<hex>` with constant-time equality checks (`hmac.compare_digest`) against timing side-channels.
+   - **Timestamp Replay Window:** 300-second freshness validation on inbound and outbound webhooks to prevent intercepted replay attacks.
+2. **Platform-Native Payload Adapters (`core/erp_adapters.py`):**
+   - **Shopify Admin REST (`POST /admin/api/latest/orders/{order_id}/refunds.json`):** Formulates exact `refund_line_items` (`restock_type="return"` for verified OEM, `"no_restock"` for fraud), itemized deduction notes, transaction amounts, and order fraud tags (`returnshield:verified_oem`, `returnshield:fraud_blocked`).
+   - **Narvar Post-Purchase:** Transforms triage findings into `approved`, `rejected`, or `investigate` return status updates with embedded dispute certificate hashes.
+   - **Amazon SAFE-T & Flipkart SPF:** Generates structured claim dossiers with standardized reason codes (`DIFFERENT_ITEM_RETURNED`, `SERIAL_NUMBER_MISMATCH`, `CUSTOMER_RETURNED_ITEMS_MISSING_PARTS`) linked directly to the 2-page ReportLab PDF evidence packet.
+3. **Resilient Asynchronous Delivery Engine (`core/webhook_dispatcher.py`):**
+   - Dispatches via `httpx.AsyncClient` with non-blocking `asyncio.create_task` execution, preserving sub-second triage response times.
+   - Implements exponential backoff retry policy (3 attempts with exponential delay on 5xx or network drops).
+   - Maintains an on-disk audit trail of all delivery attempts, status codes, and execution latencies.
+
+### The Lesson
+> *Reverse logistics triage only completes when the upstream ERP executes the financial disposition. Decouple physical camera triage from outbound network I/O via asynchronous, cryptographically signed webhooks with native platform adapters.*
+
+
 
 
 

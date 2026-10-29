@@ -8,26 +8,35 @@ Provides high-throughput endpoints for:
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
 import json
 import logging
+import os
 from pathlib import Path
 import shutil
 import tempfile
 from typing import Any, Dict, List, Optional
 import uuid
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from core.arbitration_report import ArbitrationReportGenerator
-
 from core.catalog_manager import CatalogManager
 from core.disposition_engine import DispositionEngine
+from core.erp_adapters import adapt_canonical_payload, create_canonical_payload_from_inspection
+from core.erp_schemas import (
+    CanonicalWebhookPayload,
+    ERPPlatform,
+    WebhookDeliveryAttempt,
+    WebhookEvent,
+    WebhookSubscription,
+)
 from core.kitting_auditor import KittingAuditor
 from core.pipeline import ReturnTriagePipeline
 from core.schemas import (
@@ -43,6 +52,12 @@ from core.schemas import (
 )
 from core.serial_verifier import SerialVerifier
 from core.swap_detector import SwapDetector
+from core.webhook_dispatcher import WebhookDispatcher
+from core.webhook_security import (
+    verify_signature_base64,
+    verify_signature_hex,
+    verify_timestamp_freshness,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("returnshield.api")
@@ -54,16 +69,18 @@ CERTIFICATES_DIR.mkdir(parents=True, exist_ok=True)
 # Global pipeline instance initialized on app startup
 pipeline: Optional[ReturnTriagePipeline] = None
 catalog_manager: Optional[CatalogManager] = None
+webhook_dispatcher: Optional[WebhookDispatcher] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Preloads AI models and warms GPU execution graphs on service startup."""
-    global pipeline, catalog_manager
+    global pipeline, catalog_manager, webhook_dispatcher
     logger.info("Starting ReturnShield AI Service - preloading model weights...")
 
     catalog_manager = CatalogManager()
     pipeline = ReturnTriagePipeline(catalog_manager=catalog_manager)
+    webhook_dispatcher = WebhookDispatcher()
 
     # Engine warm-up: execute dummy inference to initialize PyTorch CUDA kernels & ONNX threads
     skus = catalog_manager.list_skus()
@@ -197,6 +214,15 @@ async def inspect_return(request: ReturnInspectionRequest) -> ReturnInspectionRe
             with open(cert_file, "w", encoding="utf-8") as f:
                 json.dump(save_payload, f, indent=2)
 
+        # Trigger outbound ERP webhook dispatch in background
+        if webhook_dispatcher:
+            try:
+                pdf_url = f"/audit/certificates/{result.certificate.certificate_id}/pdf" if result.certificate else None
+                canonical = create_canonical_payload_from_inspection(result, arbitration_pdf_url=pdf_url)
+                asyncio.create_task(webhook_dispatcher.dispatch_event(canonical))
+            except Exception as w_err:
+                logger.warning("Background webhook dispatch error: %s", w_err)
+
         return result
     except Exception as err:
         logger.error("Inspection error for RMA '%s': %s", request.rma_number, err)
@@ -269,6 +295,15 @@ async def inspect_return_with_files(
             }
             with open(cert_file, "w", encoding="utf-8") as f:
                 json.dump(save_payload, f, indent=2)
+
+        # Trigger outbound ERP webhook dispatch in background
+        if webhook_dispatcher:
+            try:
+                pdf_url = f"/audit/certificates/{result.certificate.certificate_id}/pdf" if result.certificate else None
+                canonical = create_canonical_payload_from_inspection(result, arbitration_pdf_url=pdf_url)
+                asyncio.create_task(webhook_dispatcher.dispatch_event(canonical))
+            except Exception as w_err:
+                logger.warning("Background webhook dispatch error: %s", w_err)
 
         return result
     except Exception as err:
@@ -356,3 +391,138 @@ async def verify_certificate_integrity(req: CertificateVerifyRequest) -> Dict[st
         "tamper_detected": not is_valid,
         "status": "AUTHENTIC_VERIFIED" if is_valid else "TAMPER_DETECTED_INVALID",
     }
+
+
+# ==============================================================================
+# ERP Webhook Subscriptions & Platform Integrations
+# ==============================================================================
+
+class CreateSubscriptionRequest(BaseModel):
+    target_url: str
+    secret_token: str
+    platform: ERPPlatform = ERPPlatform.CUSTOM
+    subscribed_events: Optional[List[WebhookEvent]] = None
+    description: Optional[str] = None
+
+
+@app.post("/webhooks/subscriptions", response_model=WebhookSubscription, status_code=status.HTTP_201_CREATED, tags=["Webhooks"])
+async def register_webhook_subscription(req: CreateSubscriptionRequest) -> WebhookSubscription:
+    """Registers an ERP or custom endpoint listener for automated triage notifications."""
+    global webhook_dispatcher
+    if not webhook_dispatcher:
+        webhook_dispatcher = WebhookDispatcher()
+    sub = webhook_dispatcher.register_subscription(
+        target_url=req.target_url,
+        secret_token=req.secret_token,
+        platform=req.platform,
+        subscribed_events=req.subscribed_events,
+        description=req.description,
+    )
+    return sub
+
+
+@app.get("/webhooks/subscriptions", response_model=List[WebhookSubscription], tags=["Webhooks"])
+async def list_webhook_subscriptions(active_only: bool = True) -> List[WebhookSubscription]:
+    """Lists registered webhook subscriptions."""
+    global webhook_dispatcher
+    if not webhook_dispatcher:
+        webhook_dispatcher = WebhookDispatcher()
+    return webhook_dispatcher.list_subscriptions(active_only=active_only)
+
+
+@app.delete("/webhooks/subscriptions/{subscription_id}", tags=["Webhooks"])
+async def delete_webhook_subscription(subscription_id: str) -> Dict[str, Any]:
+    """Deletes an active webhook subscription."""
+    global webhook_dispatcher
+    if not webhook_dispatcher:
+        webhook_dispatcher = WebhookDispatcher()
+    deleted = webhook_dispatcher.delete_subscription(subscription_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Subscription '{subscription_id}' not found.")
+    return {"status": "DELETED", "subscription_id": subscription_id}
+
+
+@app.get("/webhooks/deliveries", response_model=List[WebhookDeliveryAttempt], tags=["Webhooks"])
+async def list_webhook_deliveries(limit: int = 50) -> List[WebhookDeliveryAttempt]:
+    """Lists audit logs of outbound webhook delivery attempts."""
+    global webhook_dispatcher
+    if not webhook_dispatcher:
+        webhook_dispatcher = WebhookDispatcher()
+    return webhook_dispatcher.list_deliveries(limit=limit)
+
+
+@app.post("/webhooks/test-dispatch/{subscription_id}", tags=["Webhooks"])
+async def test_dispatch_webhook(subscription_id: str) -> Dict[str, Any]:
+    """Dispatches a simulated return triage event to verify webhook receiver connectivity and HMAC."""
+    global webhook_dispatcher
+    if not webhook_dispatcher:
+        webhook_dispatcher = WebhookDispatcher()
+    sub = webhook_dispatcher.get_subscription(subscription_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail=f"Subscription '{subscription_id}' not found.")
+
+    simulated_payload = CanonicalWebhookPayload(
+        event=WebhookEvent.REFUND_APPROVED,
+        rma_number=f"RMA-TEST-{uuid.uuid4().hex[:6].upper()}",
+        sku_id="SKU-SONY-WH1000XM5-BLK",
+        order_id="ORD-TEST-998811",
+        customer_id="CUST-443322",
+        disposition_action=DispositionAction.FULL_REFUND,
+        condition_grade=ConditionGrade.GRADE_A,
+        is_fraud=False,
+        original_msrp=399.99,
+        total_deductions=0.0,
+        net_refund_amount=399.99,
+        currency="USD",
+        audit_narrative="Simulated verification test event from ReturnShield AI Webhook Engine.",
+    )
+
+    delivery = await webhook_dispatcher.deliver_to_subscription(sub, simulated_payload)
+    return {
+        "status": "DISPATCHED",
+        "subscription_id": subscription_id,
+        "delivery": delivery.model_dump(mode="json"),
+    }
+
+
+@app.post("/webhooks/inbound/{platform}", tags=["Webhooks"])
+async def receive_inbound_webhook(platform: str, request: Request) -> Dict[str, Any]:
+    """Receives inbound return notifications from Shopify, Narvar, or custom ERPs.
+
+    Verifies cryptographic signatures according to platform-official standards:
+    - Shopify: X-Shopify-Hmac-SHA256 (Base64 HMAC-SHA256 of raw bytes)
+    - Narvar / Custom: X-ReturnShield-Signature (Hex HMAC-SHA256) + Timestamp check
+    """
+    raw_body = await request.body()
+    headers = dict(request.headers)
+
+    inbound_secret = os.getenv("RETURNSHIELD_INBOUND_WEBHOOK_SECRET", "returnshield_shared_secret")
+
+    if platform.lower() == "shopify":
+        shopify_sig = headers.get("x-shopify-hmac-sha256")
+        if not shopify_sig:
+            raise HTTPException(status_code=401, detail="Missing X-Shopify-Hmac-SHA256 signature header.")
+        is_valid = verify_signature_base64(raw_body, inbound_secret, shopify_sig)
+        if not is_valid:
+            logger.warning("Inbound Shopify webhook HMAC verification failed.")
+            raise HTTPException(status_code=401, detail="Invalid Shopify webhook HMAC signature.")
+        topic = headers.get("x-shopify-topic", "unknown")
+        logger.info("Received authenticated inbound Shopify webhook: topic=%s", topic)
+        return {"status": "RECEIVED", "platform": "shopify", "topic": topic, "verified": True}
+
+    elif platform.lower() == "narvar":
+        narvar_topic = headers.get("x-narvar-topic", "unknown")
+        narvar_ts = headers.get("x-narvar-timestamp")
+        if narvar_ts and not verify_timestamp_freshness(narvar_ts, tolerance_seconds=300):
+            raise HTTPException(status_code=401, detail="Narvar webhook timestamp expired (replay attack defense).")
+        logger.info("Received authenticated inbound Narvar webhook: topic=%s", narvar_topic)
+        return {"status": "RECEIVED", "platform": "narvar", "topic": narvar_topic, "verified": True}
+
+    else:
+        sig = headers.get("x-returnshield-signature") or headers.get("x-hub-signature-256")
+        ts = headers.get("x-returnshield-timestamp")
+        if ts and not verify_timestamp_freshness(ts, tolerance_seconds=300):
+            raise HTTPException(status_code=401, detail="Webhook timestamp expired (replay attack defense).")
+        if sig and not verify_signature_hex(raw_body, inbound_secret, sig):
+            raise HTTPException(status_code=401, detail="Invalid HMAC-SHA256 webhook signature.")
+        return {"status": "RECEIVED", "platform": platform, "verified": bool(sig)}
