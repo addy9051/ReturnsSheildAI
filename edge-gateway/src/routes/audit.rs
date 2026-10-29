@@ -37,3 +37,4 @@ pub async fn verify_certificate_handler(Json(req): Json<VerifyRequest>) -> Json<
         },
     })
 }
+

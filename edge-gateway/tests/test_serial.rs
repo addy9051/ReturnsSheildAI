@@ -37,3 +37,4 @@ fn test_serial_genuine_mismatch() {
     assert_eq!(res.match_status, SerialMatchStatus::Mismatch);
     assert!(res.similarity_ratio < 0.70);
 }
+

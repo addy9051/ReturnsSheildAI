@@ -19,3 +19,4 @@ pub async fn health_handler(State(catalog): State<SharedCatalog>) -> Json<Value>
         "timestamp": Utc::now().to_rfc3339()
     }))
 }
+

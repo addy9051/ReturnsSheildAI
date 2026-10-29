@@ -59,3 +59,4 @@ pub enum AccessoryStatus {
     SubstituteNonOem,
     Damaged,
 }
+

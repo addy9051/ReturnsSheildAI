@@ -97,3 +97,4 @@ if __name__ == "__main__":
     print("ReturnShield AI Edge Ingestion Benchmark Suite")
     rust_res = benchmark_endpoint("Rust Edge Gateway (Axum)", args.rust_url, args.num_requests)
     py_res = benchmark_endpoint("Python FastAPI Service", args.python_url, args.num_requests)
+
