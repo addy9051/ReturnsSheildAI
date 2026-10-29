@@ -135,3 +135,29 @@ Specified an optical **Cross-Polarization** bench rig:
 ### The Lesson
 > *Never attempt to solve pixel saturation through software algorithms when an optical cross-polarization filter physically eliminates the reflection at the lens.*
 
+---
+
+## ADR-007: Dual-Mode Architecture for Western 3PL Intake vs Indian Doorstep QC
+
+- **Date:** 2026-10-29
+- **Status:** Accepted & Implemented
+- **Module:** `app/dashboard.py`, `app/api.py`, `core/pipeline.py`
+
+### Context
+Return inspection environments diverge fundamentally across global markets:
+- **North America / Europe:** Returns are dropped off at UPS Stores or retrieved contactless from doorsteps. Inspections happen exclusively inside automated 3PL return consolidation hubs with overhead camera rigs.
+- **India / APAC:** Delivery riders perform mandatory "Doorstep QC" before handing over the refund OTP to the customer.
+
+### The Block
+1. Doorstep inspection under 45-second delivery rider time pressure is vulnerable to human cognitive failure—riders cannot visually spot generational differences (e.g. Sony XM4 vs XM5 hinge differences) or high-grade clones with genuine serial number labels pasted over them.
+2. In-transit swaps occur inside delivery courier hub networks. Even when riders collect authentic items, couriers or hub workers swap units with clay or dummy electronics. Indian marketplace sellers (Flipkart / Amazon.in) lose $2.4B annually and face rejected SPF (Seller Protection Fund) / SAFE-T claims due to lack of verifiable chain-of-custody evidence.
+
+### The Fix
+Implemented a dual-mode application architecture:
+1. **3PL Enterprise Station Mode:** Full multi-zone overhead camera bench executing DINOv2 visual embeddings, patch anomaly heatmaps, dual-serial OCR, packaging tray BOM kitting, and SHA-256 sealed dispute certificates for Amazon SAFE-T and Flipkart SPF arbitration.
+2. **Doorstep Delivery Rider Mode:** A streamlined smartphone view running on the delivery rider's mobile handset. Takes a 1.5-second photo snap of the unboxed chassis at the doorstep, matches it against catalog DINOv2 weights, and provides a clear binary prompt (`ACCEPT & REQUEST OTP` vs `REJECT FRAUD - DO NOT COLLECT OTP`) before the customer refund is triggered.
+
+### The Lesson
+> *A return fraud defense system must adapt to the physical point of vulnerability: at the warehouse intake dock for Western 3PLs, and at the doorstep smartphone before OTP exchange for APAC delivery riders.*
+
+
