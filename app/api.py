@@ -20,8 +20,10 @@ import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+
+from core.arbitration_report import ArbitrationReportGenerator
 
 from core.catalog_manager import CatalogManager
 from core.disposition_engine import DispositionEngine
@@ -173,11 +175,15 @@ async def inspect_return(request: ReturnInspectionRequest) -> ReturnInspectionRe
     try:
         result = pipeline.inspect(request)
 
-        # Persist dispute certificate to disk
+        # Persist dispute certificate & inspection telemetry to disk
         if result.certificate:
             cert_file = CERTIFICATES_DIR / f"{result.certificate.certificate_id}.json"
+            save_payload = {
+                "certificate": result.certificate.model_dump(mode="json"),
+                "inspection_result": result.model_dump(mode="json"),
+            }
             with open(cert_file, "w", encoding="utf-8") as f:
-                f.write(result.certificate.model_dump_json(indent=2))
+                json.dump(save_payload, f, indent=2)
 
         return result
     except Exception as err:
@@ -245,8 +251,12 @@ async def inspect_return_with_files(
 
         if result.certificate:
             cert_file = CERTIFICATES_DIR / f"{result.certificate.certificate_id}.json"
+            save_payload = {
+                "certificate": result.certificate.model_dump(mode="json"),
+                "inspection_result": result.model_dump(mode="json"),
+            }
             with open(cert_file, "w", encoding="utf-8") as f:
-                f.write(result.certificate.model_dump_json(indent=2))
+                json.dump(save_payload, f, indent=2)
 
         return result
     except Exception as err:
@@ -267,7 +277,53 @@ async def get_certificate(certificate_id: str) -> AuditEvidenceCertificate:
 
     with open(cert_file, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return AuditEvidenceCertificate.model_validate(data)
+    cert_data = data.get("certificate", data)
+    return AuditEvidenceCertificate.model_validate(cert_data)
+
+
+@app.get("/audit/certificates/{certificate_id}/pdf", tags=["Audit"])
+async def download_certificate_pdf(
+    certificate_id: str,
+    platform: str = "AMAZON_SAFE_T",
+) -> FileResponse:
+    """Generates and streams court/arbitration-admissible dispute PDF for a certificate.
+
+    Supported platforms:
+    - AMAZON_SAFE_T: Amazon SAFE-T Claim format
+    - FLIPKART_SPF: Flipkart Seller Protection Fund format
+    - STRIPE_DISPUTE: Cardholder chargeback arbitration format
+    - GENERIC_ARBITRATION: Standard legal/insurance arbitration format
+    """
+    cert_file = CERTIFICATES_DIR / f"{certificate_id}.json"
+    if not cert_file.exists():
+        raise HTTPException(status_code=404, detail=f"Certificate '{certificate_id}' not found.")
+
+    with open(cert_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if "inspection_result" in data:
+        result = ReturnInspectionResult.model_validate(data["inspection_result"])
+    else:
+        cert_data = data.get("certificate", data)
+        cert = AuditEvidenceCertificate.model_validate(cert_data)
+        result = ReturnInspectionResult(
+            rma_number=cert.rma_number,
+            sku_id=cert.sku_id,
+            timestamp=cert.timestamp,
+            fraud_flags=cert.fraud_flags,
+            is_fraud=(cert.disposition_action.value == "REJECT_FRAUD_HOLD"),
+            certificate=cert,
+        )
+
+    profile = catalog_manager.get_sku(result.sku_id) if catalog_manager else None
+    generator = ArbitrationReportGenerator()
+    pdf_path = generator.generate_pdf(result, sku_profile=profile, platform=platform)
+
+    return FileResponse(
+        path=str(pdf_path),
+        filename=pdf_path.name,
+        media_type="application/pdf",
+    )
 
 
 class CertificateVerifyRequest(BaseModel):

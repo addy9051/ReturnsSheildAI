@@ -141,3 +141,10 @@ def test_api_inspect_return_and_certificate_lifecycle(api_client: TestClient):
     assert tampered_data["is_valid"] is False
     assert tampered_data["tamper_detected"] is True
     assert tampered_data["status"] == "TAMPER_DETECTED_INVALID"
+
+    # 5. Download dispute PDF dossier via GET /audit/certificates/{cert_id}/pdf
+    res_pdf = api_client.get(f"/audit/certificates/{cert_id}/pdf?platform=AMAZON_SAFE_T")
+    assert res_pdf.status_code == 200
+    assert res_pdf.headers["content-type"] == "application/pdf"
+    assert len(res_pdf.content) > 5000
+    assert res_pdf.content[:4] == b"%PDF"

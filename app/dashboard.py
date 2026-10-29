@@ -24,6 +24,7 @@ import numpy as np
 from PIL import Image
 import streamlit as st
 
+from core.arbitration_report import ArbitrationReportGenerator
 from core.catalog_manager import CatalogManager
 from core.disposition_engine import DispositionEngine
 from core.kitting_auditor import KittingAuditor
@@ -457,6 +458,43 @@ if mode == "🏭 3PL Warehouse Intake Station":
                     file_name=f"returnshield_cert_{result.certificate.certificate_id}.json",
                     mime="application/json",
                 )
+
+                st.markdown("---")
+                st.markdown("#### ⚖️ Automated Arbitration Claim Dossier (PDF)")
+                st.markdown("Generate a court- and platform-admissible dispute packet incorporating side-by-side photo evidence, DINOv2 heatmaps, dual-serial OCR forensics, and SHA-256 digital seals.")
+
+                col_plat, col_dl = st.columns([3, 2])
+                with col_plat:
+                    platform_choices = [
+                        ("AMAZON_SAFE_T", "Amazon SAFE-T Claim (US / India)"),
+                        ("FLIPKART_SPF", "Flipkart Seller Protection Fund (SPF)"),
+                        ("STRIPE_DISPUTE", "Stripe / Card Chargeback Defense"),
+                        ("GENERIC_ARBITRATION", "Universal 3PL Insurance Dossier"),
+                    ]
+                    selected_platform = st.selectbox(
+                        "Target Arbitration Platform:",
+                        platform_choices,
+                        format_func=lambda x: x[1],
+                        key="target_platform_select",
+                    )
+                with col_dl:
+                    st.write("")
+                    st.write("")
+                    prof = catalog_mgr.get_sku(result.sku_id)
+                    gen = ArbitrationReportGenerator()
+                    pdf_path = gen.generate_pdf(result, sku_profile=prof, platform=selected_platform[0])
+                    with open(pdf_path, "rb") as pf:
+                        pdf_data = pf.read()
+
+                    st.download_button(
+                        label=f"📄 Download {selected_platform[0]} PDF Dossier",
+                        data=pdf_data,
+                        file_name=pdf_path.name,
+                        mime="application/pdf",
+                        key="pdf_download_button",
+                        type="primary",
+                        use_container_width=True,
+                    )
 
 
 # ==============================================================================

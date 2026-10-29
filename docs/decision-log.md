@@ -189,5 +189,36 @@ Isolated and rewrote the production edge ingestion layer as a standalone Rust mi
 ### The Lesson
 > *Decouple ML experimentation from high-throughput production edge ingestion: keep model research in Python, but ship ultra-compact, zero-dependency compiled Rust binaries to edge nodes for sub-millisecond triage latency and bulletproof concurrency.*
 
+---
+
+## ADR-009: Automated Dispute Evidence Dossier Compilation (Multi-Platform SAFE-T / SPF / Chargeback PDF Engine)
+
+- **Date:** 2026-10-29
+- **Status:** Accepted & Implemented
+- **Module:** `core/arbitration_report.py`, `app/api.py`, `app/dashboard.py`
+
+### Context
+E-commerce sellers disputing return fraud face staggering rejection rates (>40%) on Amazon SAFE-T, Flipkart Seller Protection Fund (SPF), and Stripe cardholder chargeback arbitrations. Arbiters routinely reject claims citing "unclear photos", "unsubstantiated claims of serial mismatches", or "lack of chain of custody".
+
+### The Block
+Pure JSON evidence payloads and hashes cannot be uploaded directly to customer support and claims portals. Conversely, adopting headless browser PDF generation stacks (Puppeteer, Playwright, WeasyPrint) incurs massive system bloat (200+ MB Chromium binaries, system Cairo/Pango C-libraries), high cold-start latencies (>3.5s per render), and unpredictable memory spikes during concurrent batch claims export.
+
+### The Fix
+Implemented a dedicated, self-contained vector PDF compiler using **ReportLab** (`core/arbitration_report.py`):
+1. **Two-Pass `NumberedCanvas`:** Automatically calculates total pages ("Page X of Y"), drawing confidentiality banners, running headers, and legal footers.
+2. **Deterministic Layout Geometry:** Enforces a rigid two-page document budget:
+   - **Page 1:** Executive case summary, verdict banner (Red: Reject/Fraud, Yellow: Deductions, Green: Authentic), side-by-side visual photo comparison (OEM Reference vs Returned Chassis vs DINOv2 dense patch diff heatmap), and Dual-Serial OCR forensic alignment table.
+   - **Page 2:** Bill of Materials (BOM) packaging tray checklist with itemized deductions, itemized financial deduction summary, legal arbitration certification narrative, deterministic SHA-256 evidence hash, and a native vector QR code encoding verification links.
+3. **Multi-Platform Protocol Adapters:** Emits tailored legal headings and dispute categories:
+   - `AMAZON_SAFE_T`: Formatted under Amazon SAFE-T Reimbursement Policy.
+   - `FLIPKART_SPF`: Formatted under Flipkart Seller Protection Fund (In-Transit Theft & Dummy Item Swap).
+   - `STRIPE_DISPUTE`: Formatted under Cardholder Fraudulent Return Chargeback Defense.
+   - `GENERIC_ARBITRATION`: Formatted for 3PL reverse logistics insurance underwriters.
+4. **Resilient Degradation:** Uses bounding box proportion calculations to guarantee zero visual distortion regardless of camera aspect ratio, and falls back gracefully to formatted textual indicators if physical snapshots are omitted.
+
+### The Lesson
+> *A return fraud detection engine only delivers enterprise ROI if its technical proof is formatted into court- and claims-admissible evidence. Standardize on native, lightweight vector PDF compilers over heavy headless browser stacks to ensure reliable, zero-dependency dispute packet exports.*
+
+
 
 

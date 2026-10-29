@@ -33,6 +33,8 @@ storage/heatmaps/*.png
 !storage/heatmaps/.gitkeep
 storage/certificates/*.json
 !storage/certificates/.gitkeep
+storage/dispute_packets/*.pdf
+!storage/dispute_packets/.gitkeep
 storage/synthetic_demo/
 
 # Rust build artifacts

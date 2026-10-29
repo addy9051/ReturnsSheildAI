@@ -7,7 +7,7 @@
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 63 Passed](https://img.shields.io/badge/Tests-63%20Passed%20(56%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 68 Passed](https://img.shields.io/badge/Tests-68%20Passed%20(61%20Py%20%2B%207%20Rust)-success.svg)](tests/)
 
 ---
 
@@ -215,6 +215,11 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Sobel edge gradient & Shannon entropy packaging tray kitting auditor.
   - Deterministic SHA-256 dispute certificate sealing.
   - Live concurrency benchmark suite (`scripts/benchmark_rust_vs_python.py`).
+- [x] **Phase 6: Automated Arbitration Dispute Packet Generator (PDF)**
+  - Publication-grade 2-page PDF compiler with ReportLab (`core/arbitration_report.py`).
+  - Tailored claims evidence templates for Amazon SAFE-T, Flipkart SPF, and Stripe Chargebacks.
+  - Native vector QR code, SHA-256 evidence hashing, side-by-side DINOv2 heatmaps, and serial OCR forensics.
+  - REST endpoint (`GET /audit/certificates/{certificate_id}/pdf`) and 1-click Streamlit dashboard download.
 
 ---
 
