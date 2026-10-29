@@ -26,36 +26,43 @@ Mid-market DTC brands and 3PL warehouses handling high-value returns ($100–$2,
 
 ```mermaid
 flowchart TD
-    subgraph Station["Overhead Camera Station (< 3s SLA)"]
+    subgraph Station["Overhead Camera Station - Sub-3s SLA"]
         RawSnap["Single Overhead Snapshot (RGB, 4K)"]
         ROI_Chassis["Zone 1: Product Chassis ROI"]
         ROI_Tray["Zone 2: Accessory Tray ROI"]
         ROI_BoxBar["Zone 3: Outer Box Barcode"]
         ROI_Serial["Zone 4: Chassis Serial Plate"]
-        RawSnap --> ROI_Chassis & ROI_Tray & ROI_BoxBar & ROI_Serial
+        RawSnap --> ROI_Chassis
+        RawSnap --> ROI_Tray
+        RawSnap --> ROI_BoxBar
+        RawSnap --> ROI_Serial
     end
 
-    subgraph Phase1["Stage 1: Catalog & Representation (Implemented)"]
-        CatDB[("catalog_db.json<br/>SKU Metadata & BOM")]
-        EmbCache[("embeddings/*.npz<br/>DINOv2 Vector Cache")]
-        CatDB & EmbCache --> CatMgr["CatalogManager"]
+    subgraph Phase1["Stage 1: Catalog & Representation"]
+        CatDB[("catalog_db.json: SKU Metadata & BOM")]
+        EmbCache[("embeddings: DINOv2 Vector Cache")]
+        CatDB --> CatMgr["CatalogManager"]
+        EmbCache --> CatMgr
     end
 
-    subgraph Phase2["Stage 2: Core Fraud Engines (Active Spec)"]
-        ROI_Chassis --> DINO_Extract["DINOv2 Feature Extractor<br/>dinov2_vits14"]
+    subgraph Phase2["Stage 2: Core Fraud Engines"]
+        ROI_Chassis --> DINO_Extract["DINOv2 Feature Extractor (dinov2_vits14)"]
         EmbCache --> DINO_Extract
-        DINO_Extract --> SwapDet["Swap Detector<br/>(Global + Patch Heatmap)"]
+        DINO_Extract --> SwapDet["Swap Detector: Global & Patch Heatmap"]
         
-        ROI_BoxBar --> BarcodeEngine["1D/2D Barcode Decoder<br/>(cv2.barcode)"]
-        ROI_Serial --> OCREngine["Chassis Serial OCR<br/>(CLAHE + Scene OCR)"]
-        BarcodeEngine & OCREngine --> NormEngine["OCR Normalizer &<br/>Weighted Levenshtein"]
+        ROI_BoxBar --> BarcodeEngine["1D/2D Barcode Decoder (cv2.barcode)"]
+        ROI_Serial --> OCREngine["Chassis Serial OCR (CLAHE & Scene OCR)"]
+        BarcodeEngine --> NormEngine["OCR Normalizer & Weighted Levenshtein"]
+        OCREngine --> NormEngine
         NormEngine --> SerialVerifier["Dual-Serial Verifier"]
     end
 
     subgraph Phase3["Stage 3: Kitting & Financial Disposition"]
-        ROI_Tray --> KittingAuditor["Kitting Auditor<br/>(BOM Presence Verification)"]
-        SwapDet & SerialVerifier & KittingAuditor --> DispEngine["Disposition Engine"]
-        DispEngine --> CryptoCert["SHA-256 Audit Certificate<br/>(Stripe / Amazon SAFE-T)"]
+        ROI_Tray --> KittingAuditor["Kitting Auditor: BOM Presence Verification"]
+        SwapDet --> DispEngine["Disposition Engine"]
+        SerialVerifier --> DispEngine
+        KittingAuditor --> DispEngine
+        DispEngine --> CryptoCert["SHA-256 Audit Certificate (Stripe & Amazon SAFE-T)"]
     end
 ```
 
@@ -107,31 +114,25 @@ storage/
 A returned product may match the general form factor (e.g. over-ear headphones), but have counterfeit materials, swapped headband components, or a completely different generation/model.
 
 ```mermaid
-stateDiagram-v2
-    [*] --> IngestChassis
-    IngestChassis --> ExtractDINOv2: Run dinov2_vits14
-    ExtractDINOv2 --> ComputeGlobalCosine: Dot product with Cached SKU Vector
+flowchart TD
+    Start(["Ingest Chassis Crop"]) --> Extract["Run dinov2_vits14 Feature Extraction"]
+    Extract --> GlobalSim["Compute Cosine Dot Product with Catalog Reference"]
     
-    state GlobalDecision <<choice>>
-    ComputeGlobalCosine --> GlobalDecision
+    GlobalSim --> EvalScore{"Global Cosine Score"}
+    EvalScore -- "Score at least 0.88" --> OEM["Verified OEM Unit"]
+    EvalScore -- "Score between 0.70 and 0.88" --> PatchCheck["Dense Patch Distance Map Analysis"]
+    EvalScore -- "Score below 0.70" --> SwapConfirmed["Confirmed Swap Fraud"]
     
-    GlobalDecision --> HighConfidenceOEM: Cosine >= 0.88
-    GlobalDecision --> BorderlineZone: 0.70 <= Cosine < 0.88
-    GlobalDecision --> ConfirmedSwap: Cosine < 0.70
+    PatchCheck --> Smooth["Spatial Gaussian Smoothing"]
+    Smooth --> Heatmap["Generate COLORMAP_JET Anomaly Overlay"]
+    Heatmap --> PeakCheck{"Peak Patch Anomaly"}
     
-    state PatchInspection {
-        BorderlineZone --> ComputePatchDistanceMap
-        ComputePatchDistanceMap --> SpatialGaussianSmooth
-        SpatialGaussianSmooth --> GenerateHeatmapOverlay
-        GenerateHeatmapOverlay --> PeakPatchThresholdCheck
-    }
+    PeakCheck -- "Anomaly above 0.45" --> SwapSuspected["Suspected Swap or Local Tamper"]
+    PeakCheck -- "Anomaly at or below 0.45" --> OEM
     
-    PeakPatchThresholdCheck --> SuspectedSwap: Peak Patch Anomaly > 0.45
-    PeakPatchThresholdCheck --> HighConfidenceOEM: Peak Patch Anomaly <= 0.45
-    
-    HighConfidenceOEM --> ReturnOEMResult: Status = VERIFIED_OEM
-    SuspectedSwap --> ReturnSwapResult: Status = SUSPECTED_SWAP, Flag = BAIT_AND_SWITCH
-    ConfirmedSwap --> ReturnSwapResult: Status = CONFIRMED_SWAP, Flag = BAIT_AND_SWITCH
+    OEM --> ResOEM["Result: VERIFIED_OEM"]
+    SwapSuspected --> ResSuspected["Result: SUSPECTED_SWAP with BAIT_AND_SWITCH Flag"]
+    SwapConfirmed --> ResConfirmed["Result: CONFIRMED_SWAP with BAIT_AND_SWITCH Flag"]
 ```
 
 #### Dense Patch Anomaly Grid Mathematics
@@ -153,36 +154,37 @@ Fraudulent returns frequently feature a legitimate outer box barcode matching th
 
 ```mermaid
 flowchart LR
-    subgraph Input
+    subgraph Input["Input Captures"]
         Box["Box Shipping Barcode ROI"]
         Chassis["Chassis Serial Plate ROI"]
     end
 
     subgraph BoxDecode["Outer Box Extraction"]
         Box --> BarcodeDet["cv2.barcode.BarcodeDetector"]
-        BarcodeDet --> RawBoxStr["Raw Box Barcode: 'SN-SNY-8842109'"]
+        BarcodeDet --> RawBoxStr["Raw Box Barcode String"]
     end
 
     subgraph ChassisOCR["Chassis Serial Extraction"]
         Chassis --> CLAHE["CLAHE Contrast Enhancement"]
-        CLAHE --> Bilateral["Bilateral Filter (Denoise)"]
+        CLAHE --> Bilateral["Bilateral Filter Denoising"]
         Bilateral --> Binarize["Adaptive Otsu Binarization"]
         Binarize --> SceneOCR["Chassis Serial Text Extractor"]
-        SceneOCR --> RawChassisStr["Raw Chassis OCR: 'SN-SNY-8842IO9'"]
+        SceneOCR --> RawChassisStr["Raw Chassis OCR String"]
     end
 
     subgraph Normalization["Ambiguity Resolution & Normalization"]
-        RawBoxStr & RawChassisStr --> UpperStrip["Uppercase & Strip Separators"]
-        UpperStrip --> ConfusionMap["Apply OCR Confusion Matrix<br/>(O<->0, I<->1<->L, S<->5, Z<->2)"]
+        RawBoxStr --> UpperStrip["Uppercase and Strip Separators"]
+        RawChassisStr --> UpperStrip
+        UpperStrip --> ConfusionMap["Apply OCR Confusion Matrix: O/0, I/1/L, S/5, Z/2"]
         ConfusionMap --> RegexMask["SKU Expected Serial Regex Validation"]
         RegexMask --> WeightedLev["Weighted Levenshtein Scoring"]
     end
 
     subgraph Decision["Serial Verification Output"]
         WeightedLev --> ResultClass{"Normalized Distance"}
-        ResultClass -- "Dist == 0.0" --> EXACT["EXACT_MATCH"]
-        ResultClass -- "0.0 < Dist <= 0.25" --> NORM["NORMALIZED_MATCH"]
-        ResultClass -- "Dist > 0.25" --> MISMATCH["MISMATCH (Flag Fraud)"]
+        ResultClass -- "Dist is zero" --> EXACT["EXACT_MATCH"]
+        ResultClass -- "Dist up to 0.25" --> NORM["NORMALIZED_MATCH"]
+        ResultClass -- "Dist above 0.25" --> MISMATCH["MISMATCH: Flag Fraud"]
     end
 ```
 

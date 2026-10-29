@@ -27,6 +27,8 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs & Generated Heatmap Run Artifacts
 *.log
+storage/heatmaps/*.png
+!storage/heatmaps/.gitkeep
 
