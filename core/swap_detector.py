@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 import uuid
 
 import cv2
@@ -31,6 +31,7 @@ class SwapDetector:
     def __init__(
         self,
         catalog_manager: Optional[CatalogManager] = None,
+        embedding_engine: Optional[Any] = None,
         high_threshold: float = 0.88,
         low_threshold: float = 0.70,
         patch_anomaly_threshold: float = 0.45,
@@ -40,13 +41,14 @@ class SwapDetector:
 
         Args:
             catalog_manager: CatalogManager instance containing cached SKU embeddings.
+            embedding_engine: Optional DINOv2EmbeddingEngine or EdgeEmbeddingEngine instance.
             high_threshold: Minimum cosine similarity required for instant OEM verification (>= 0.88).
             low_threshold: Maximum cosine similarity below which a return is confirmed fraud (< 0.70).
             patch_anomaly_threshold: Peak patch distance score triggering localized tamper flag.
             heatmaps_dir: Directory where dispute-evidence heatmap overlays are saved.
         """
         self.catalog_manager = catalog_manager or CatalogManager()
-        self.embedding_engine = self.catalog_manager.embedding_engine
+        self.embedding_engine = embedding_engine or self.catalog_manager.embedding_engine
         self.high_threshold = high_threshold
         self.low_threshold = low_threshold
         self.patch_anomaly_threshold = patch_anomaly_threshold

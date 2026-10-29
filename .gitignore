@@ -42,3 +42,10 @@ target/
 edge-gateway/target/
 *.pdb
 
+# Quantized and Compiled Edge Models
+storage/models/*.onnx
+storage/models/*.engine
+storage/models/*.plan
+!storage/models/.gitkeep
+
+

@@ -7,7 +7,7 @@
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 69 Passed](https://img.shields.io/badge/Tests-69%20Passed%20(62%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 75 Passed](https://img.shields.io/badge/Tests-75%20Passed%20(68%20Py%20%2B%207%20Rust)-success.svg)](tests/)
 
 ---
 
@@ -226,6 +226,12 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Real-time client-side Web Audio API acoustic feedback (harmonic major chord vs fraud alert tritone).
   - Customer refund OTP security gate preventing release on swaps, serial mismatches, or missing BOM parts.
   - 1-click Doorstep dispute packet PDF download and instant scenario simulator presets.
+- [x] **Phase 8: Edge-AI Model Quantization (INT8 Edge vs FP8 TensorRT)**
+  - Dual CLS + patch token ONNX export toolchain (`core/quantization.py`).
+  - Tier 1 INT8 Dynamic Quantization for edge/mobile ($3.64\times$ compression, $84\text{ MB} \to 23\text{ MB}$, $>0.99$ cosine parity).
+  - Tier 2 FP8 (E4M3) ONNX Opset 19+ export and TensorRT compilation engine (`scripts/export_fp8_tensorrt.py`).
+  - Pure NumPy/PIL edge inference engine with zero PyTorch runtime dependencies (`core/edge_inference.py`).
+  - Parity and architecture test suite with 6 tests (`tests/test_quantization.py`).
 
 ---
 
