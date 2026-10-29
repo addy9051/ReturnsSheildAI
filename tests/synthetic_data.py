@@ -49,6 +49,48 @@ class MockReturnCase:
     chassis_crop_path: Path
     serial_plate_crop_path: Path
     tray_crop_path: Path
+    oblique_image_path: Optional[Path] = None
+
+
+def create_oblique_image(
+    variant: str = "authentic_black",
+    liquid_damage: bool = False,
+    flank_swap: bool = False,
+    fractured_hinge: bool = False,
+    size: Tuple[int, int] = (400, 400),
+) -> Image.Image:
+    """Generates synthetic 45-degree oblique perspective camera view of product flank and ports."""
+    if flank_swap:
+        # Swapped flank housing (e.g. vintage beige or mismatched material)
+        img = Image.new("RGB", size, color=(225, 220, 205))
+        draw = ImageDraw.Draw(img)
+        draw.ellipse([80, 80, 320, 320], fill=(210, 205, 190), outline=(170, 165, 150), width=4)
+        draw.text((120, 190), "SWAPPED FLANK", fill=(100, 95, 80))
+        return img
+
+    img = Image.new("RGB", size, color=(235, 238, 240))  # warehouse mat background
+    draw = ImageDraw.Draw(img)
+
+    # Lateral headphone earcup and pivot bracket
+    draw.ellipse([60, 90, 340, 330], fill=(42, 45, 48), outline=(65, 68, 72), width=3)
+    # Headband slider hinge bracket
+    draw.rounded_rectangle([170, 30, 230, 120], radius=8, fill=(35, 38, 40), outline=(60, 62, 65), width=2)
+
+    # 3.5mm recessed audio port cavity
+    draw.ellipse([185, 280, 215, 310], fill=(15, 15, 18), outline=(80, 82, 85), width=2)
+
+    if liquid_damage:
+        # Triggered crimson / pink Liquid Damage Indicator (LDI) inside port cavity
+        draw.ellipse([193, 288, 207, 302], fill=(230, 25, 35))
+    else:
+        # Pristine silver/white untriggered LDI sticker
+        draw.ellipse([193, 288, 207, 302], fill=(240, 242, 245))
+
+    if fractured_hinge:
+        # High-contrast jagged fracture line across hinge
+        draw.line([(180, 50), (200, 75), (185, 95), (220, 110)], fill=(255, 255, 255), width=3)
+
+    return img
 
 
 def create_chassis_image(
@@ -336,6 +378,50 @@ def generate_synthetic_return_dataset(
             "expected_condition": ConditionGrade.GRADE_C,
             "expected_serial_status": SerialMatchStatus.EXACT_MATCH,
             "wear_severity": 0.45,
+            "liquid_damage": False,
+            "flank_swap": False,
+        },
+        {
+            "case_id": "CASE-06-LIQUID-DAMAGE",
+            "title": "Liquid Ingress Damage (LDI Triggered)",
+            "description": "Genuine XM5 returned with triggered crimson Liquid Damage Indicator in lateral port cavity.",
+            "chassis_variant": "authentic_black",
+            "scratches": False,
+            "box_barcode": genuine_serial,
+            "chassis_serial": genuine_serial,
+            "tampered_serial": False,
+            "cable": True,
+            "case": True,
+            "manual": True,
+            "detected_accessories": ["cable-usbc", "case-travel", "doc-manual"],
+            "expected_fraud_flags": [FraudFlag.PHYSICAL_DAMAGE],
+            "expected_disposition": DispositionAction.PARTIAL_REFUND,
+            "expected_condition": ConditionGrade.GRADE_C,
+            "expected_serial_status": SerialMatchStatus.EXACT_MATCH,
+            "wear_severity": 0.1,
+            "liquid_damage": True,
+            "flank_swap": False,
+        },
+        {
+            "case_id": "CASE-07-COVERT-SWAP",
+            "title": "Covert Sandwich Swap (Top OEM vs Flank Swap)",
+            "description": "Fraudster maintained genuine top headband shell but swapped internal/underbelly housing.",
+            "chassis_variant": "authentic_black",
+            "scratches": False,
+            "box_barcode": genuine_serial,
+            "chassis_serial": genuine_serial,
+            "tampered_serial": False,
+            "cable": True,
+            "case": True,
+            "manual": True,
+            "detected_accessories": ["cable-usbc", "case-travel", "doc-manual"],
+            "expected_fraud_flags": [FraudFlag.BAIT_AND_SWITCH],
+            "expected_disposition": DispositionAction.REJECT_FRAUD_HOLD,
+            "expected_condition": ConditionGrade.FRAUD_HOLD,
+            "expected_serial_status": SerialMatchStatus.EXACT_MATCH,
+            "wear_severity": 0.4,
+            "liquid_damage": False,
+            "flank_swap": True,
         },
     ]
 
@@ -373,6 +459,14 @@ def generate_synthetic_return_dataset(
         tray_path = case_dir / "tray_crop.png"
         tray_img.save(tray_path, "PNG")
 
+        oblique_img = create_oblique_image(
+            variant=item["chassis_variant"],
+            liquid_damage=item.get("liquid_damage", False),
+            flank_swap=item.get("flank_swap", False),
+        )
+        oblique_path = case_dir / "oblique_crop.png"
+        oblique_img.save(oblique_path, "PNG")
+
         # Composite overhead triage bench snapshot
         overhead_img = create_overhead_composite(
             chassis_img=chassis_img,
@@ -401,6 +495,7 @@ def generate_synthetic_return_dataset(
             chassis_crop_path=chassis_path,
             serial_plate_crop_path=serial_path,
             tray_crop_path=tray_path,
+            oblique_image_path=oblique_path,
         )
         cases[case_id] = case_obj
 

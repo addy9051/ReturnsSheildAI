@@ -358,3 +358,33 @@ Implemented an industrial multi-angle volumetric stereo inspection suite (`core/
 
 
 
+
+
+---
+
+## ADR-014: Authentic Consumer Electronics Return Harvester & Teardown Video Stream Pipeline
+
+- **Date:** 2026-10-30
+- **Status:** Accepted & Implemented
+- **Module:** \scripts/harvest_real_world_returns.py\, \	ests/test_real_world_harvester.py\, \storage/real_world_harvest_manifest.json
+### Context
+Standard computer vision anomaly datasets (MVTec AD, VisA) focus on industrial parts (screws, hazelnuts, raw printed circuit boards), which do not represent consumer electronics returns (\-\,000 headphones, cordless vacuums, and power tools). Furthermore, synthetic 2D sketches or procedurally drawn defects do not capture authentic physical fracture mechanics, worn pleather patina, foam decay, or covert bait-and-switch substitutions.
+
+### The Block
+Warehouse intake models must be verified against actual physical returns:
+1. Authentic stress fractures along plastic swivel hinge brackets (e.g. Sony WH-1000XM4/XM5).
+2. Genuine pleather peeling, oil staining, and torn scrim mats on acoustic ear cushions.
+3. Tampered driver cavities and removed acoustic dampeners (e.g. Apple AirPods Max teardowns).
+4. Bait-and-switch impostor returns where vintage/budget models (Sony MDR-7506, WH-CH510) are returned in modern retail packaging.
+5. Live video camera feeds requiring keyframe extraction and blur rejection.
+
+### The Fix
+Built a multi-source harvester pipeline (\scripts/harvest_real_world_returns.py\):
+1. **iFixit Teardown & Repair Guides:** Harvested 42 high-resolution (up to 1600x1200) macro photos across swivel replacement, earpad replacement, teardown driver extraction, and broken trigger guides.
+2. **Wikimedia Commons Open DSLR Assets:** Harvested 8 authentic DSLR photos (up to 6048x4024) of pristine chassis, carry case BOMs, broken vacuum cleaners, and genuine swap impostors.
+3. **OpenCV Video Stream Extractor:** Decodes frames from product rotation and warehouse package handling video streams, applying Laplacian blur variance filtering (\Var(Laplacian) > 100\) to reject motion-blurred frames.
+4. **Structured Return Cases:** Compiled 5 production return scenarios in \storage/sample_returns/\ (\REAL-CASE-01\ through \REAL-CASE-05\) with complete triage manifests.
+5. **Interactive Dashboard:** Added \U0001f4f9 Real-World Harvested CV Dataset & Video Streams\ mode to Streamlit workstation for live asset browsing, filtering, and case inspection.
+
+### The Lesson
+> *Real return fraud occurs at the intersection of consumer wear, physical fracture, and covert component substitution. Harvesting authentic teardown documentation and verified open photography provides the ground-truth benchmark necessary for production triage without relying on artificial sketches or synthetic stand-ins.*

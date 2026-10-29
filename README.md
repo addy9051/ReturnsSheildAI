@@ -7,7 +7,7 @@
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 92 Passed](https://img.shields.io/badge/Tests-92%20Passed%20(85%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 96 Passed](https://img.shields.io/badge/Tests-96%20Passed%20(89%20Py%20%2B%207%20Rust)-success.svg)](tests/)
 
 ---
 
@@ -249,6 +249,13 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Multi-view feature fusion ($90^\circ$ orthogonal overhead + $45^\circ$ oblique flank) exposing covert chassis swaps.
   - Integration into triage pipeline, financial disposition deductions, and multipart image upload API.
   - 6 unit & integration tests (`tests/test_volumetric_inspector.py`).
+- [x] **Phase 11: Real-World Consumer Return Harvester & Video Stream Pipeline**
+  - Multi-source scraper harvesting authentic macro photography and video streams from iFixit repair guides and Wikimedia Commons (`scripts/harvest_real_world_returns.py`).
+  - 64 indexed authentic assets covering genuine broken swivel hinges, worn pleather cushions, internal driver arrays, and cracked appliance housings across Sony XM4/XM5, Apple AirPods Max, Bose QC, and Dyson V15.
+  - OpenCV video stream keyframe extractor with Laplacian blur variance filtering ($\text{Var}(\nabla^2 I) > 100$).
+  - 5 assembled production return test cases in `storage/sample_returns/` with complete triage manifests (`REAL-CASE-01` through `REAL-CASE-05`).
+  - Interactive Streamlit dashboard operating mode: `📹 Real-World Harvested CV Dataset & Video Streams`.
+  - 4 unit and integration tests (`tests/test_real_world_harvester.py`).
 
 ---
 

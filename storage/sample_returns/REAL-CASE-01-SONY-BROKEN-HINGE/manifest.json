@@ -1,0 +1,13 @@
+{
+  "case_id": "REAL-CASE-01-SONY-BROKEN-HINGE",
+  "sku_id": "SKU-SONY-WH1000XM5-BLK",
+  "title": "Sony WH-1000XM4/XM5 Real Broken Swivel Hinge Fracture",
+  "expected_condition": "GRADE_C",
+  "fraud_flags": [
+    "PHYSICAL_DAMAGE"
+  ],
+  "expected_disposition": "PARTIAL_REFUND_RESTOCKING_FEE",
+  "notes": "Authentic physical fracture across lateral swivel hinge bracket; confirmed mechanical failure.",
+  "chassis_image": "chassis.jpg",
+  "detail_image": "detail.jpg"
+}

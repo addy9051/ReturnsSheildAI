@@ -27,6 +27,11 @@ import streamlit as st
 from core.arbitration_report import ArbitrationReportGenerator
 from core.catalog_manager import CatalogManager
 from core.disposition_engine import DispositionEngine
+from core.erp_adapters import (
+    create_canonical_payload_from_inspection,
+    format_platform_payload,
+)
+from core.erp_schemas import ERPPlatform
 from core.kitting_auditor import KittingAuditor
 from core.pipeline import ReturnTriagePipeline
 from core.schemas import (
@@ -42,6 +47,12 @@ from core.schemas import (
 )
 from core.serial_verifier import SerialVerifier
 from core.swap_detector import SwapDetector
+from core.volumetric_schemas import (
+    HingeCondition,
+    LiquidDamageStatus,
+    MultiAngleInspectionResult,
+)
+from core.webhook_security import WebhookSigner
 from tests.synthetic_data import generate_synthetic_return_dataset
 
 # ==============================================================================
@@ -160,6 +171,7 @@ mode = st.sidebar.radio(
         "🏭 3PL Warehouse Intake Station",
         "📱 Doorstep Delivery Rider QC [Mobile Mode]",
         "🗂️ SKU Catalog & Reference Vectors",
+        "📹 Real-World Harvested CV Dataset & Video Streams",
     ],
 )
 
@@ -194,8 +206,13 @@ if mode == "🏭 3PL Warehouse Intake Station":
         "CASE-03-SERIAL-MISMATCH: Stolen Unit in Genuine Box (Serial Mismatch)",
         "CASE-04-MISSING-ACCESSORIES: Incomplete BOM (Missing Cables & Case)",
         "CASE-05-COSMETIC-WEAR: Heavy Abrasions & Scratches (Grade C)",
-        "REAL-01: Real Sony WH-1000XM5 Benchmark",
-        "REAL-02: Real Bose QC Ultra (Cross-Brand Swap Attack)",
+        "CASE-06-LIQUID-DAMAGE: Liquid Ingress (Triggered Crimson LDI in Audio Port)",
+        "CASE-07-COVERT-SWAP: Covert Sandwich Swap (Top OEM vs Fake Oblique Flank)",
+        "REAL-01: Real Sony XM4/XM5 (Fractured Swivel Hinge Bracket)",
+        "REAL-02: Real Apple AirPods Max (Disassembled Internal Drivers)",
+        "REAL-03: Real Bose QuietComfort (Authentic Full Carry Case Kit)",
+        "REAL-04: Real Dyson Vacuum (Cracked Housing & Broken Trigger)",
+        "REAL-05: Real Bait-and-Switch (Vintage Sony MDR Returned in XM5 Box)",
         "CUSTOM: Upload Custom Return Photos",
     ]
 
@@ -209,6 +226,7 @@ if mode == "🏭 3PL Warehouse Intake Station":
     serial_path = None
     tray_path = None
     overhead_path = None
+    oblique_path = None
 
     if selected_preset.startswith("CASE-01"):
         case = scenarios["CASE-01-CLEAN"]
@@ -219,6 +237,7 @@ if mode == "🏭 3PL Warehouse Intake Station":
         serial_path = str(case.serial_plate_crop_path)
         tray_path = str(case.tray_crop_path)
         overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
     elif selected_preset.startswith("CASE-02"):
         case = scenarios["CASE-02-SWAP"]
         sku_id = case.sku_id
@@ -228,6 +247,7 @@ if mode == "🏭 3PL Warehouse Intake Station":
         serial_path = str(case.serial_plate_crop_path)
         tray_path = str(case.tray_crop_path)
         overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
     elif selected_preset.startswith("CASE-03"):
         case = scenarios["CASE-03-SERIAL-MISMATCH"]
         sku_id = case.sku_id
@@ -237,6 +257,7 @@ if mode == "🏭 3PL Warehouse Intake Station":
         serial_path = str(case.serial_plate_crop_path)
         tray_path = str(case.tray_crop_path)
         overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
     elif selected_preset.startswith("CASE-04"):
         case = scenarios["CASE-04-MISSING-ACCESSORIES"]
         sku_id = case.sku_id
@@ -246,6 +267,7 @@ if mode == "🏭 3PL Warehouse Intake Station":
         serial_path = str(case.serial_plate_crop_path)
         tray_path = str(case.tray_crop_path)
         overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
     elif selected_preset.startswith("CASE-05"):
         case = scenarios["CASE-05-COSMETIC-WEAR"]
         sku_id = case.sku_id
@@ -255,17 +277,62 @@ if mode == "🏭 3PL Warehouse Intake Station":
         serial_path = str(case.serial_plate_crop_path)
         tray_path = str(case.tray_crop_path)
         overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
+    elif selected_preset.startswith("CASE-06"):
+        case = scenarios["CASE-06-LIQUID-DAMAGE"]
+        sku_id = case.sku_id
+        rma_num = case.rma_number
+        box_barcode = case.box_barcode
+        chassis_path = str(case.chassis_crop_path)
+        serial_path = str(case.serial_plate_crop_path)
+        tray_path = str(case.tray_crop_path)
+        overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
+    elif selected_preset.startswith("CASE-07"):
+        case = scenarios["CASE-07-COVERT-SWAP"]
+        sku_id = case.sku_id
+        rma_num = case.rma_number
+        box_barcode = case.box_barcode
+        chassis_path = str(case.chassis_crop_path)
+        serial_path = str(case.serial_plate_crop_path)
+        tray_path = str(case.tray_crop_path)
+        overhead_path = str(case.overhead_image_path)
+        oblique_path = str(case.oblique_image_path) if case.oblique_image_path else None
     elif selected_preset.startswith("REAL-01"):
         sku_id = "SKU-SONY-WH1000XM5-BLK"
         rma_num = "RMA-REAL-XM5-01"
-        box_barcode = "SN-SONY-XM5-8821"
-        chassis_path = str(Path(__file__).resolve().parent.parent / "storage" / "catalog_images" / sku_id / "ref_1.png")
+        box_barcode = "SN-SNY-8842109"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-01-SONY-BROKEN-HINGE"
+        chassis_path = str(base_dir / "chassis.jpg")
+        oblique_path = str(base_dir / "detail.jpg")
     elif selected_preset.startswith("REAL-02"):
-        sku_id = "SKU-SONY-WH1000XM5-BLK"  # Expected XM5 in the box
-        rma_num = "RMA-ATTACK-BOSE-02"
-        box_barcode = "SN-SONY-XM5-8821"
-        # Customer returned Bose QC Ultra
-        chassis_path = str(Path(__file__).resolve().parent.parent / "storage" / "catalog_images" / "SKU-BOSE-QC-ULTRA-BLK" / "ref_1.png")
+        sku_id = "SKU-APPLE-APM-SLV"
+        rma_num = "RMA-REAL-APM-02"
+        box_barcode = "H1CDG0JTP3W9"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-02-AIRPODS-MAX-DISASSEMBLED"
+        chassis_path = str(base_dir / "chassis.jpg")
+        oblique_path = str(base_dir / "detail.jpg")
+    elif selected_preset.startswith("REAL-03"):
+        sku_id = "SKU-BOSE-QCU-BLK"
+        rma_num = "RMA-REAL-BOSE-03"
+        box_barcode = "084123456789012"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-03-BOSE-QC-AUTHENTIC-KIT"
+        chassis_path = str(base_dir / "chassis.jpg")
+        tray_path = str(base_dir / "detail.jpg")
+    elif selected_preset.startswith("REAL-04"):
+        sku_id = "SKU-DYSON-V15-DET"
+        rma_num = "RMA-REAL-DYSON-04"
+        box_barcode = "SN-DYS-9941208"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-04-DYSON-BROKEN-VACUUM"
+        chassis_path = str(base_dir / "chassis.jpg")
+        oblique_path = str(base_dir / "detail.jpg")
+    elif selected_preset.startswith("REAL-05"):
+        sku_id = "SKU-SONY-WH1000XM5-BLK"
+        rma_num = "RMA-REAL-SWAP-05"
+        box_barcode = "SN-SNY-8842109"
+        base_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns" / "REAL-CASE-05-SWAP-MDR-FOR-XM5"
+        chassis_path = str(base_dir / "chassis.jpg")
+        oblique_path = str(base_dir / "detail.jpg")
 
     # Bench Inputs
     col_in1, col_in2, col_in3 = st.columns(3)
@@ -280,14 +347,14 @@ if mode == "🏭 3PL Warehouse Intake Station":
 
     # Visual Inspection Feeds Preview
     st.markdown("### 2. Multi-Zone Station Capture Preview")
-    col_img1, col_img2, col_img3 = st.columns(3)
+    col_img1, col_img2, col_img3, col_img4 = st.columns(4)
 
     with col_img1:
         st.markdown("**Zone A: Chassis ROI**")
         if chassis_path and Path(chassis_path).exists():
             st.image(chassis_path, caption="Product Chassis Capture", use_container_width=True)
         else:
-            uploaded_chassis = st.file_uploader("Upload Chassis Crop:", type=["png", "jpg", "jpeg"])
+            uploaded_chassis = st.file_uploader("Upload Chassis Crop:", type=["png", "jpg", "jpeg"], key="up_chassis")
             if uploaded_chassis:
                 temp_p = Path("storage/temp_chassis.png")
                 temp_p.parent.mkdir(parents=True, exist_ok=True)
@@ -310,6 +377,20 @@ if mode == "🏭 3PL Warehouse Intake Station":
         else:
             st.info("Packaging tray crop (optional)")
 
+    with col_img4:
+        st.markdown("**Zone D: 45° Oblique Flank & Ports**")
+        if oblique_path and Path(oblique_path).exists():
+            st.image(oblique_path, caption="Oblique Perspective ROI", use_container_width=True)
+        else:
+            uploaded_oblique = st.file_uploader("Upload Oblique:", type=["png", "jpg", "jpeg"], key="up_oblique")
+            if uploaded_oblique:
+                temp_ob = Path("storage/temp_oblique.png")
+                temp_ob.parent.mkdir(parents=True, exist_ok=True)
+                with open(temp_ob, "wb") as f:
+                    f.write(uploaded_oblique.read())
+                oblique_path = str(temp_ob)
+                st.image(oblique_path, use_container_width=True)
+
     st.markdown("---")
 
     # Scan Trigger Button
@@ -328,6 +409,7 @@ if mode == "🏭 3PL Warehouse Intake Station":
                 serial_plate_crop_path=serial_path,
                 tray_crop_path=tray_path,
                 overhead_image_path=overhead_path,
+                oblique_image_path=oblique_path,
                 operator_id="OPERATOR-BAY-03",
                 bench_id="BENCH-DOCK-EAST",
             )
@@ -369,11 +451,13 @@ if mode == "🏭 3PL Warehouse Intake Station":
         # ----------------------------------------------------------------------
         # Deep-Dive Detailed Forensic Tabs
         # ----------------------------------------------------------------------
-        tab_swap, tab_serial, tab_kitting, tab_cert = st.tabs([
+        tab_swap, tab_vol, tab_serial, tab_kitting, tab_cert, tab_erp = st.tabs([
             "🔍 Visual Identity & DINOv2 Heatmap",
+            "🌊 Volumetric & Multi-Angle Stereo",
             "🔤 Dual-Serial OCR Verification",
             "📦 BOM Kitting Checklist",
             "🛡️ Cryptographic Dispute Certificate",
+            "📡 Real-Time ERP Webhooks",
         ])
 
         with tab_swap:
@@ -396,6 +480,36 @@ if mode == "🏭 3PL Warehouse Intake Station":
                         st.info("No spatial diff heatmap generated for this case.")
             else:
                 st.write("Visual identity analysis not executed (no chassis crop provided).")
+
+        with tab_vol:
+            st.markdown("#### Volumetric Stereo Disparity & Lateral Inspection")
+            if result.volumetric_result:
+                v = result.volumetric_result
+                col_v1, col_v2 = st.columns(2)
+                with col_v1:
+                    st.write(f"**Liquid Damage Status (LDI):** `{v.liquid_damage_status.value}`")
+                    st.write(f"**Crimson LDI Pixels Detected:** `{v.liquid_indicator_pixels}`")
+                    st.write(f"**Lateral Hinge Integrity:** `{v.hinge_condition.value}`")
+                    st.write(f"**Multi-View Fused Similarity:** `{v.multi_view_fused_similarity:.4f}`")
+                    st.write(f"  • Top Similarity (90°): `{v.top_similarity:.4f}`")
+                    st.write(f"  • Oblique Similarity (45°): `{v.oblique_similarity:.4f}`")
+                    if v.lateral_tamper_detected:
+                        st.error("🛑 LATERAL TAMPER DETECTED: Covert top-shell vs flank swap divergence.")
+                    else:
+                        st.success("✅ Multi-angle perspective geometric alignment verified.")
+
+                    if v.lateral_findings:
+                        st.markdown("**Forensic Volumetric Findings:**")
+                        for f in v.lateral_findings:
+                            st.write(f"- {f}")
+
+                with col_v2:
+                    if v.disparity_map_path and Path(v.disparity_map_path).exists():
+                        st.image(v.disparity_map_path, caption="StereoSGBM Disparity Heatmap Overlay (OpenCV TURBO)", use_container_width=True)
+                    else:
+                        st.info("Disparity map generated during stereo camera capture.")
+            else:
+                st.info("No oblique/stereo inspection feed provided for this return.")
 
         with tab_serial:
             st.markdown("#### Cross-Match: Shipping Label Barcode vs Metallic Serial Engraving")
@@ -495,6 +609,34 @@ if mode == "🏭 3PL Warehouse Intake Station":
                         type="primary",
                         use_container_width=True,
                     )
+
+        with tab_erp:
+            st.markdown("#### Real-Time E-Commerce ERP & Platform Webhooks")
+            st.caption("Synchronizes physical return triage outcomes with Shopify, Narvar, Amazon SAFE-T, and Flipkart SPF.")
+
+            canonical_payload = create_canonical_payload_from_inspection(result)
+
+            erp_choice = st.radio(
+                "Platform Payload Preview:",
+                ["Shopify Admin REST (refunds.json)", "Narvar Post-Purchase", "Amazon SAFE-T Claim", "Flipkart SPF Claim"],
+                horizontal=True,
+            )
+
+            if erp_choice.startswith("Shopify"):
+                pl_dict = format_platform_payload(canonical_payload, ERPPlatform.SHOPIFY)
+                raw_bytes = json.dumps(pl_dict).encode("utf-8")
+                sig = WebhookSigner.sign_shopify_base64(raw_bytes, "shpss_test_secret_key_8842109")
+                st.code(f"X-Shopify-Hmac-SHA256: {sig}", language="text")
+                st.json(pl_dict)
+            elif erp_choice.startswith("Narvar"):
+                pl_dict = format_platform_payload(canonical_payload, ERPPlatform.NARVAR)
+                st.json(pl_dict)
+            elif erp_choice.startswith("Amazon"):
+                pl_dict = format_platform_payload(canonical_payload, ERPPlatform.AMAZON_SAFE_T)
+                st.json(pl_dict)
+            else:
+                pl_dict = format_platform_payload(canonical_payload, ERPPlatform.FLIPKART_SPF)
+                st.json(pl_dict)
 
 
 # ==============================================================================
@@ -653,3 +795,123 @@ elif mode == "🗂️ SKU Catalog & Reference Vectors":
                     catalog_mgr.onboard_sku(new_prof)
                     st.success(f"Successfully onboarded SKU '{new_id}'!")
                     st.rerun()
+
+
+# ==============================================================================
+# Mode 4: Real-World Harvested CV Dataset & Video Streams
+# ==============================================================================
+
+elif mode == "📹 Real-World Harvested CV Dataset & Video Streams":
+    st.title("📹 Real-World Consumer Return CV Dataset & Video Streams")
+    st.markdown(
+        "> **Authentic Physical Defect Photography & Live Inspection Streams**  \n"
+        "> *Macro-lens DSLR imagery and video feeds from iFixit teardown guides and Wikimedia Commons.*"
+    )
+
+    manifest_path = Path(__file__).resolve().parent.parent / "storage" / "real_world_harvest_manifest.json"
+    if not manifest_path.exists():
+        st.warning("Harvest manifest not found. Run `python scripts/harvest_real_world_returns.py` to harvest assets.")
+    else:
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            manifest_data = json.load(f)
+
+        records = manifest_data.get("records", [])
+
+        # Top Metric Cards
+        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+        with col_m1:
+            st.metric("Total Harvested Assets", len(records))
+        with col_m2:
+            sources = set(r.get("source") for r in records if "source" in r)
+            st.metric("Data Sources", len(sources))
+        with col_m3:
+            video_frames = [r for r in records if r.get("condition_type") == "VIDEO_STREAM_FRAME"]
+            st.metric("Video Stream Frames", len(video_frames))
+        with col_m4:
+            skus_covered = set(r.get("sku_id") for r in records if r.get("sku_id"))
+            st.metric("SKUs Profiled", len(skus_covered))
+
+        st.markdown("---")
+
+        tab_gallery, tab_video, tab_cases = st.tabs([
+            "🖼️ Authentic Defect Gallery",
+            "🎥 Video Stream Keyframes",
+            "📦 Assembled Return Cases",
+        ])
+
+        with tab_gallery:
+            st.subheader("Authentic Macro Defect Photography")
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                cond_filter = st.selectbox(
+                    "Filter Condition Type:",
+                    ["ALL"] + sorted(list(set(r.get("condition_type", "") for r in records if r.get("condition_type")))),
+                )
+            with col_f2:
+                sku_filter = st.selectbox(
+                    "Filter SKU:",
+                    ["ALL"] + sorted(list(set(r.get("sku_id", "") for r in records if r.get("sku_id")))),
+                )
+
+            filtered = records
+            if cond_filter != "ALL":
+                filtered = [r for r in filtered if r.get("condition_type") == cond_filter]
+            if sku_filter != "ALL":
+                filtered = [r for r in filtered if r.get("sku_id") == sku_filter]
+
+            st.caption(f"Showing {len(filtered)} matching authentic assets:")
+
+            cols = st.columns(3)
+            for i, rec in enumerate(filtered[:18]):
+                rel_p = rec.get("path")
+                abs_p = Path(__file__).resolve().parent.parent / rel_p
+                with cols[i % 3]:
+                    if abs_p.exists():
+                        st.image(str(abs_p), caption=f"{rec.get('condition_type')} ({rec.get('width')}x{rec.get('height')})")
+                        st.caption(f"**Source:** {rec.get('source')} | `{rec.get('sku_id', 'N/A')}`")
+                        with st.expander("Asset Metadata"):
+                            st.json(rec)
+
+        with tab_video:
+            st.subheader("Decoded Video Stream Inspection Frames")
+            st.markdown("Frames extracted via OpenCV `cv2.VideoCapture` with Laplacian blur sharpness verification:")
+
+            video_records = [r for r in records if r.get("condition_type") == "VIDEO_STREAM_FRAME"]
+            vcols = st.columns(3)
+            for i, vrec in enumerate(video_records):
+                v_rel = vrec.get("path")
+                v_abs = Path(__file__).resolve().parent.parent / v_rel
+                with vcols[i % 3]:
+                    if v_abs.exists():
+                        st.image(str(v_abs), caption=f"{vrec.get('feed_id')} (Frame #{i+1})")
+                        st.caption(f"**Sharpness Score:** `{vrec.get('laplacian_sharpness')}` | Resolution: `{vrec.get('width')}x{vrec.get('height')}`")
+
+        with tab_cases:
+            st.subheader("5 Assembled Production Return Test Cases")
+            cases_dir = Path(__file__).resolve().parent.parent / "storage" / "sample_returns"
+            case_folders = [d for d in sorted(cases_dir.glob("REAL-CASE-*")) if d.is_dir()]
+
+            for c_folder in case_folders:
+                c_manifest = c_folder / "manifest.json"
+                if c_manifest.exists():
+                    with open(c_manifest, "r", encoding="utf-8") as f:
+                        c_info = json.load(f)
+
+                    with st.expander(f"📦 {c_info.get('case_id')}: {c_info.get('title')}", expanded=True):
+                        col_c1, col_c2, col_c3 = st.columns([1, 1, 2])
+                        chassis_f = c_folder / "chassis.jpg"
+                        detail_f = c_folder / "detail.jpg"
+
+                        with col_c1:
+                            if chassis_f.exists():
+                                st.image(str(chassis_f), caption="Chassis View")
+                        with col_c2:
+                            if detail_f.exists():
+                                st.image(str(detail_f), caption="Detail / Oblique View")
+                        with col_c3:
+                            st.write(f"**Expected SKU:** `{c_info.get('sku_id')}`")
+                            st.write(f"**Expected Grade:** `{c_info.get('expected_condition')}`")
+                            st.write(f"**Expected Disposition:** `{c_info.get('expected_disposition')}`")
+                            st.write(f"**Fraud Flags:** `{c_info.get('fraud_flags')}`")
+                            st.info(f"**Diagnostic Notes:** {c_info.get('notes')}")
+
