@@ -240,6 +240,7 @@ async def inspect_return_with_files(
     serial_plate_image: Optional[UploadFile] = File(None),
     tray_image: Optional[UploadFile] = File(None),
     overhead_image: Optional[UploadFile] = File(None),
+    oblique_image: Optional[UploadFile] = File(None),
 ) -> ReturnInspectionResult:
     """Multipart form endpoint accepting direct image uploads from station camera or phone."""
     if not pipeline:
@@ -272,6 +273,12 @@ async def inspect_return_with_files(
         with open(overhead_path, "wb") as f:
             shutil.copyfileobj(overhead_image.file, f)
 
+    oblique_path = None
+    if oblique_image and oblique_image.filename:
+        oblique_path = str(staging_dir / f"oblique_{oblique_image.filename}")
+        with open(oblique_path, "wb") as f:
+            shutil.copyfileobj(oblique_image.file, f)
+
     req = ReturnInspectionRequest(
         rma_number=rma_number,
         sku_id=sku_id,
@@ -280,6 +287,7 @@ async def inspect_return_with_files(
         serial_plate_crop_path=serial_path,
         tray_crop_path=tray_path,
         overhead_image_path=overhead_path,
+        oblique_image_path=oblique_path,
         operator_id=operator_id,
         bench_id=bench_id,
     )

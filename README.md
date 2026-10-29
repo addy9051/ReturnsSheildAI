@@ -7,7 +7,7 @@
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 86 Passed](https://img.shields.io/badge/Tests-86%20Passed%20(79%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 92 Passed](https://img.shields.io/badge/Tests-92%20Passed%20(85%20Py%20%2B%207%20Rust)-success.svg)](tests/)
 
 ---
 
@@ -61,7 +61,10 @@ returnshield-ai/
 │   ├── catalog_manager.py      # Zero-training SKU onboarding & DINOv2 vector cache
 │   ├── swap_detector.py        # DINOv2 dense patch distance & spatial heatmap generator
 │   ├── serial_verifier.py      # Dual-serial OCR verifier with weighted confusion matrix
-│   └── dataset_loader.py       # Real-world benchmark dataset evaluator & ROI cropper
+│   ├── volumetric_inspector.py # Stereo SGBM 3D depth, dual-band LDI & joint integrity
+│   ├── kitting_auditor.py      # Accessory tray completeness & Shannon entropy auditor
+│   ├── disposition_engine.py   # Multi-tier itemized deduction & refund fee calculator
+│   └── pipeline.py             # Orchestrated multi-modal return triage pipeline
 ├── docs/
 │   ├── architecture.md         # Living specification, hardware rig & cross-pol optics
 │   ├── decision-log.md         # Architecture Decision Records (ADRs 001 - 006)
@@ -239,6 +242,13 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Asynchronous dispatch via `httpx` with exponential backoff and persistent delivery audit trail.
   - FastAPI REST endpoints for webhook subscription CRUD, delivery inspection, and inbound verification (`/webhooks/inbound/{platform}`).
   - 11 unit & integration tests (`tests/test_webhooks.py`).
+- [x] **Phase 10: Multi-Angle Volumetric & Stereo Camera Inspection**
+  - Semi-Global Block Matching (StereoSGBM) 3D volumetric disparity and thickness profiling (`core/volumetric_inspector.py`).
+  - Dual-band HSV wrap-around red/pink Liquid Damage Indicator (LDI) detection ($[0, 16]$ & $[168, 179]$).
+  - Lateral hinge & structural joint fracture analysis via Sobel gradient magnitude energy.
+  - Multi-view feature fusion ($90^\circ$ orthogonal overhead + $45^\circ$ oblique flank) exposing covert chassis swaps.
+  - Integration into triage pipeline, financial disposition deductions, and multipart image upload API.
+  - 6 unit & integration tests (`tests/test_volumetric_inspector.py`).
 
 ---
 

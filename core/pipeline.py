@@ -23,6 +23,12 @@ from core.schemas import (
 )
 from core.serial_verifier import SerialVerifier
 from core.swap_detector import SwapDetector
+from core.volumetric_inspector import VolumetricStereoInspector
+from core.volumetric_schemas import (
+    HingeCondition,
+    LiquidDamageStatus,
+    MultiAngleInspectionResult,
+)
 
 logger = logging.getLogger("returnshield.pipeline")
 
@@ -37,6 +43,7 @@ class ReturnTriagePipeline:
         serial_verifier: Optional[SerialVerifier] = None,
         kitting_auditor: Optional[KittingAuditor] = None,
         disposition_engine: Optional[DispositionEngine] = None,
+        volumetric_inspector: Optional[VolumetricStereoInspector] = None,
     ):
         """Initializes all sub-inspection engines."""
         self.catalog_manager = catalog_manager or CatalogManager()
@@ -44,6 +51,7 @@ class ReturnTriagePipeline:
         self.serial_verifier = serial_verifier or SerialVerifier()
         self.kitting_auditor = kitting_auditor or KittingAuditor(catalog_manager=self.catalog_manager)
         self.disposition_engine = disposition_engine or DispositionEngine()
+        self.volumetric_inspector = volumetric_inspector or VolumetricStereoInspector()
 
     def inspect(self, request: ReturnInspectionRequest) -> ReturnInspectionResult:
         """Executes full automated triage scan on a return package.
@@ -112,13 +120,82 @@ class ReturnTriagePipeline:
         except Exception as err:
             logger.error("Kitting auditor failed for RMA '%s': %s", request.rma_number, err)
 
-        # 4. Surface Wear Analysis
+        # 4. Multi-Angle Oblique & Volumetric Stereo Inspection
+        volumetric_result = None
+        if request.oblique_image_path:
+            evidence_snapshots["oblique_image"] = str(request.oblique_image_path)
+            try:
+                top_input = request.chassis_crop_path or request.overhead_image_path
+                findings = []
+                disparity_path = None
+                volumetric_profile = None
+
+                if top_input:
+                    _, disparity_path, volumetric_profile = self.volumetric_inspector.compute_disparity_map(
+                        left_image=top_input,
+                        right_image=request.oblique_image_path,
+                        save_heatmap=True,
+                    )
+                    if disparity_path:
+                        evidence_snapshots["disparity_map"] = disparity_path
+
+                # Liquid Damage Indicator check
+                ldi_status, ldi_pixels = self.volumetric_inspector.inspect_liquid_damage_indicator(
+                    request.oblique_image_path
+                )
+                if ldi_status == LiquidDamageStatus.CONFIRMED_LIQUID_DAMAGE:
+                    findings.append(f"Confirmed liquid damage: {ldi_pixels} pink/crimson LDI pixels detected.")
+
+                # Lateral hinge integrity check
+                hinge_status, hinge_energy = self.volumetric_inspector.inspect_hinge_integrity(
+                    request.oblique_image_path
+                )
+                if hinge_status != HingeCondition.INTACT_OEM:
+                    findings.append(f"Lateral joint anomaly: {hinge_status.value} (fracture energy {hinge_energy})")
+
+                # Multi-view similarity evaluation
+                top_sim = swap_result.cosine_similarity if swap_result else 1.0
+                oblique_sim = top_sim
+                if hasattr(self.swap_detector, "embedding_engine"):
+                    try:
+                        pil_oblique, _ = self.swap_detector._load_image_rgb_bgr(request.oblique_image_path)
+                        oblique_cls, _ = self.swap_detector.embedding_engine.extract_features(pil_oblique)
+                        ref_cls = self.catalog_manager.get_sku_embedding(sku_id)
+                        if ref_cls is not None:
+                            import numpy as np
+                            oblique_sim = float(np.dot(ref_cls, oblique_cls))
+                    except Exception as e:
+                        logger.debug("Oblique embedding extraction error: %s", e)
+
+                fused_sim, lateral_tamper = self.volumetric_inspector.fuse_multi_view_inspection(
+                    top_similarity=top_sim,
+                    oblique_similarity=oblique_sim,
+                )
+                if lateral_tamper:
+                    findings.append(f"Multi-view divergence: Top {top_sim:.3f} vs Oblique {oblique_sim:.3f} indicates covert flank/underbelly swap.")
+
+                volumetric_result = MultiAngleInspectionResult(
+                    liquid_damage_status=ldi_status,
+                    liquid_indicator_pixels=ldi_pixels,
+                    hinge_condition=hinge_status,
+                    volumetric_profile=volumetric_profile,
+                    disparity_map_path=disparity_path,
+                    multi_view_fused_similarity=fused_sim,
+                    top_similarity=top_sim,
+                    oblique_similarity=oblique_sim,
+                    lateral_tamper_detected=lateral_tamper,
+                    lateral_findings=findings,
+                )
+            except Exception as err:
+                logger.error("Volumetric inspector failed for RMA '%s': %s", request.rma_number, err)
+
+        # 5. Surface Wear Analysis
         surface_wear_score = 0.0
         # If spatial diff is available, use it as a proxy for physical abrasion
         if swap_result and swap_result.spatial_diff_score:
             surface_wear_score = min(1.0, swap_result.spatial_diff_score * 0.8)
 
-        # 5. Financial Disposition & Audit Certificate Generation
+        # 6. Financial Disposition & Audit Certificate Generation
         disposition, certificate = self.disposition_engine.calculate_disposition(
             sku_profile=profile,
             rma_number=request.rma_number,
@@ -127,6 +204,7 @@ class ReturnTriagePipeline:
             kitting_result=kitting_result,
             surface_wear_score=surface_wear_score,
             evidence_snapshot_paths=evidence_snapshots,
+            volumetric_result=volumetric_result,
         )
 
         processing_time_ms = round((time.time() - start_time) * 1000.0, 2)
@@ -139,6 +217,7 @@ class ReturnTriagePipeline:
             swap_result=swap_result,
             serial_result=serial_result,
             kitting_result=kitting_result,
+            volumetric_result=volumetric_result,
             disposition=disposition,
             certificate=certificate,
             processing_time_ms=processing_time_ms,

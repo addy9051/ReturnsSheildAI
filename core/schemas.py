@@ -16,6 +16,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from core.volumetric_schemas import MultiAngleInspectionResult
+
 
 # ==============================================================================
 # Domain Enums
@@ -154,6 +156,7 @@ class ReturnInspectionRequest(BaseModel):
     chassis_crop_path: Optional[str] = Field(default=None, description="Isolated product chassis ROI")
     serial_plate_crop_path: Optional[str] = Field(default=None, description="Cropped serial number engraving or label")
     tray_crop_path: Optional[str] = Field(default=None, description="Cropped accessory tray ROI")
+    oblique_image_path: Optional[str] = Field(default=None, description="45-degree lateral/oblique camera capture for port & hinge inspection")
     operator_id: Optional[str] = Field(default="OPERATOR-01", description="3PL warehouse inspector ID")
     bench_id: Optional[str] = Field(default="BENCH-01", description="Workstation station ID")
 
@@ -266,6 +269,7 @@ class ReturnInspectionResult(BaseModel):
     swap_result: Optional[SwapDetectionResult] = None
     serial_result: Optional[SerialVerificationResult] = None
     kitting_result: Optional[KittingAuditResult] = None
+    volumetric_result: Optional[MultiAngleInspectionResult] = None
     disposition: Optional[DispositionResult] = None
     certificate: Optional[AuditEvidenceCertificate] = None
     processing_time_ms: float = Field(default=0.0, ge=0.0)

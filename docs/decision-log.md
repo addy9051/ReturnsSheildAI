@@ -307,6 +307,51 @@ Implemented a unified, asynchronous ERP webhook engine with cryptographic securi
 ### The Lesson
 > *Reverse logistics triage only completes when the upstream ERP executes the financial disposition. Decouple physical camera triage from outbound network I/O via asynchronous, cryptographically signed webhooks with native platform adapters.*
 
+---
+
+## ADR-013: Multi-Angle Volumetric & Stereo Camera Inspection (StereoSGBM & Dual-Band HSV LDI)
+
+- **Date:** 2026-10-30
+- **Status:** Accepted & Implemented
+- **Module:** `core/volumetric_schemas.py`, `core/volumetric_inspector.py`, `core/pipeline.py`, `core/disposition_engine.py`, `app/api.py`, `tests/test_volumetric_inspector.py`
+
+### Context
+Sophisticated return fraudsters increasingly attempt "chassis transplants" or "sandwich swaps": maintaining the authentic top exterior housing (which passes single-angle overhead DINOv2 inspection with $\ge 0.90$ cosine similarity) while swapping internal electronics, battery ballast, or cracked flank housing. Furthermore, returns with catastrophic water immersion or cracked pivot hinges often slip past 2D top-down cameras because water ingress stickers (Liquid Damage Indicators, LDIs) and micro-fractures are recessed inside lateral 3.5mm headphone jacks, USB-C charging ports, and headband pivot joints.
+
+### The Block
+1. A single 2D camera cannot measure component thickness or physical volume, allowing hollow shells weighted with clay or metal washers to pass visual triage.
+2. LDIs turn from white/silver to crimson/pink upon contact with water, but ambient warehouse lighting causes glare and specular reflections that fool simple RGB thresholds. Furthermore, red hues in HSV wrap around the $0^\circ / 360^\circ$ circle ($0-16$ and $168-179$ in OpenCV 8-bit HSV), leading to false negatives if a single contiguous threshold range is queried.
+3. Disparity values returned by OpenCV StereoSGBM are fixed-point `CV_16S` scaled by 16 (4 fractional bits). Converting directly to float without scaling causes a $16\times$ distortion in depth metrics.
+
+### The Fix
+Implemented an industrial multi-angle volumetric stereo inspection suite (`core/volumetric_inspector.py`):
+1. **OpenCV StereoSGBM Volumetric Depth Profiling:**
+   - Computes dense disparity fields using Semi-Global Block Matching (`StereoSGBM_create(minDisparity=0, numDisparities=64, blockSize=7, P1=8*3*49, P2=32*3*49, disp12MaxDiff=1, uniquenessRatio=10)`).
+   - Converts `CV_16S` fixed-point disparities to floating-point via `disparity_fp = disparity.astype(np.float32) / 16.0`.
+   - Derives metric depth:
+     $$Z = \frac{B \cdot f}{D}$$
+     where $B$ is baseline (mm), $f$ is focal length (pixels), and $D$ is disparity.
+   - Computes volumetric thickness profile, surface roughness ($\sigma_Z$), and 3D bounding box dimensions, generating TURBO colormap disparity overlays for arbitration dispute packets.
+2. **Dual-Band HSV Wrap-Around Liquid Damage Indicator (LDI) Detection:**
+   - Uses official OpenCV HSV color space wrap-around thresholding:
+     $$\text{Band 1}: H \in [0, 16], S \in [50, 255], V \in [90, 255]$$
+     $$\text{Band 2}: H \in [168, 179], S \in [50, 255], V \in [90, 255]$$
+   - Applies morphological opening with a $3 \times 3$ ellipse kernel to eliminate specular sensor noise:
+     $$\text{Mask}_{\text{LDI}} = (\text{Mask}_1 \lor \text{Mask}_2) \circ K_3$$
+   - Triages as `CONFIRMED_LIQUID_DAMAGE` if triggered pixels exceed threshold ($\ge 60$ px), automatically triggering financial deduction (40% MSRP up to \$150.00).
+3. **Lateral Hinge & Joint Integrity via Sobel Gradient Energy:**
+   - Computes horizontal and vertical Sobel gradients ($k=3$) to calculate gradient magnitude:
+     $$G = \sqrt{G_x^2 + G_y^2}$$
+   - Measures 95th percentile edge energy and HSV saturation standard deviation to distinguish clean factory seams from fractured plastic edges ($p_{95} > 140.0$) and unauthorized glue/epoxy repairs ($p_{95} > 140.0$ and $\sigma_S > 50.0$).
+4. **Multi-View Feature Fusion & Covert Swap Detection:**
+   - Fuses orthogonal top view ($90^\circ$, weight $0.60$) with oblique flank view ($45^\circ$, weight $0.40$):
+     $$S_{\text{fused}} = 0.60 \cdot S_{\text{top}} + 0.40 \cdot S_{\text{oblique}}$$
+   - Detects covert "sandwich swaps" where top similarity looks authentic ($\ge 0.85$) but oblique similarity fails ($< 0.75$), triggering immediate `lateral_tamper_detected` and routing to `REJECT_FRAUD_HOLD`.
+
+### The Lesson
+> *Fraudsters adapt to 2D overhead computer vision by preserving the visible outer shell while gutting the inner components. Stereo volumetric mapping and dual-band multi-angle inspection close the loop, turning physical 3D geometry and lateral microscopic indicators into tamper-evident proofs.*
+
+
 
 
 

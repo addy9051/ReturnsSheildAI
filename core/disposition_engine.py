@@ -32,6 +32,11 @@ from core.schemas import (
     SKUProfile,
     SwapDetectionResult,
 )
+from core.volumetric_schemas import (
+    HingeCondition,
+    LiquidDamageStatus,
+    MultiAngleInspectionResult,
+)
 
 logger = logging.getLogger("returnshield.disposition_engine")
 
@@ -68,6 +73,7 @@ class DispositionEngine:
         serial_result: Optional[SerialVerificationResult],
         kitting_result: Optional[KittingAuditResult],
         condition_grade: ConditionGrade,
+        volumetric_result: Optional[MultiAngleInspectionResult] = None,
     ) -> List[FraudFlag]:
         """Synthesizes active fraud or anomaly flags across all inspection sub-modules."""
         flags: List[FraudFlag] = []
@@ -87,9 +93,17 @@ class DispositionEngine:
         if kitting_result and not kitting_result.all_items_present:
             flags.append(FraudFlag.MISSING_ACCESSORY)
 
-        # 4. Physical damage check
+        # 4. Physical damage & volumetric check
         if condition_grade == ConditionGrade.GRADE_C:
             flags.append(FraudFlag.PHYSICAL_DAMAGE)
+
+        if volumetric_result:
+            if volumetric_result.lateral_tamper_detected and FraudFlag.BAIT_AND_SWITCH not in flags:
+                flags.append(FraudFlag.BAIT_AND_SWITCH)
+            if volumetric_result.liquid_damage_status == LiquidDamageStatus.CONFIRMED_LIQUID_DAMAGE and FraudFlag.PHYSICAL_DAMAGE not in flags:
+                flags.append(FraudFlag.PHYSICAL_DAMAGE)
+            if volumetric_result.hinge_condition == HingeCondition.FRACTURED_CRACKED and FraudFlag.PHYSICAL_DAMAGE not in flags:
+                flags.append(FraudFlag.PHYSICAL_DAMAGE)
 
         if not flags:
             flags.append(FraudFlag.CLEAN)
@@ -105,6 +119,7 @@ class DispositionEngine:
         kitting_result: Optional[KittingAuditResult] = None,
         surface_wear_score: float = 0.0,
         evidence_snapshot_paths: Optional[Dict[str, str]] = None,
+        volumetric_result: Optional[MultiAngleInspectionResult] = None,
     ) -> Tuple[DispositionResult, AuditEvidenceCertificate]:
         """Calculates exact financial disposition and seals cryptographic audit certificate.
 
@@ -116,6 +131,7 @@ class DispositionEngine:
             kitting_result: Output from KittingAuditor.
             surface_wear_score: Normalized cosmetic abrasion severity [0.0, 1.0].
             evidence_snapshot_paths: Dictionary mapping ROI names to disk image paths.
+            volumetric_result: Optional output from VolumetricStereoInspector.
 
         Returns:
             Tuple of (DispositionResult, AuditEvidenceCertificate).
@@ -126,13 +142,16 @@ class DispositionEngine:
         # 1. Evaluate fraud severity
         has_swap_fraud = swap_result is not None and swap_result.is_swap_detected and swap_result.identity_status == IdentityMatchStatus.CONFIRMED_SWAP
         has_serial_fraud = serial_result is not None and (not serial_result.is_match) and serial_result.match_status == SerialMatchStatus.MISMATCH
-        is_hard_fraud = has_swap_fraud or has_serial_fraud
+        has_lateral_fraud = volumetric_result is not None and volumetric_result.lateral_tamper_detected
+        is_hard_fraud = has_swap_fraud or has_serial_fraud or has_lateral_fraud
 
         # 2. Determine cosmetic condition grade
         condition_grade = self.determine_condition_grade(surface_wear_score, is_hard_fraud)
 
         # 3. Collect fraud flags
-        fraud_flags = self.evaluate_fraud_flags(swap_result, serial_result, kitting_result, condition_grade)
+        fraud_flags = self.evaluate_fraud_flags(
+            swap_result, serial_result, kitting_result, condition_grade, volumetric_result=volumetric_result
+        )
 
         # 4. Financial Calculation Engine
         if is_hard_fraud:
@@ -180,6 +199,30 @@ class DispositionEngine:
                     category="cosmetic_wear",
                     amount=wear_amt,
                 ))
+
+            # D. Volumetric, liquid, and lateral joint deductions
+            if volumetric_result:
+                if volumetric_result.liquid_damage_status == LiquidDamageStatus.CONFIRMED_LIQUID_DAMAGE:
+                    liquid_fee = round(min(150.0, msrp * 0.40), 2)
+                    deductions.append(ItemizedDeduction(
+                        reason="Liquid Ingress Damage (Triggered LDI)",
+                        category="liquid_damage",
+                        amount=liquid_fee,
+                    ))
+                if volumetric_result.hinge_condition == HingeCondition.FRACTURED_CRACKED:
+                    hinge_fee = round(min(80.0, msrp * 0.20), 2)
+                    deductions.append(ItemizedDeduction(
+                        reason="Fractured Structural Hinge / Pivot Joint",
+                        category="hinge_damage",
+                        amount=hinge_fee,
+                    ))
+                if volumetric_result.volumetric_profile and volumetric_result.volumetric_profile.discrepancy_detected:
+                    vol_fee = round(min(50.0, msrp * 0.15), 2)
+                    deductions.append(ItemizedDeduction(
+                        reason=f"3D Volumetric Thickness Discrepancy ({volumetric_result.volumetric_profile.depth_delta_mm:.1f}mm delta)",
+                        category="volumetric_deviation",
+                        amount=vol_fee,
+                    ))
 
             total_deductions = min(msrp, round(sum(d.amount for d in deductions), 2))
             net_refund = max(0.0, round(msrp - total_deductions, 2))
