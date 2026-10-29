@@ -166,7 +166,7 @@ class SwapDetectionResult(BaseModel):
     cosine_similarity: float = Field(..., ge=-1.0, le=1.0, description="Cosine similarity score vs reference embedding")
     threshold: float = Field(default=0.85, description="Decision threshold applied")
     is_swap_detected: bool = Field(..., description="True if item deviates from catalog reference")
-    explanation: str = Field(..., description="Human-readable explanation of visual comparison")
+    explanation: str = Field(default="", description="Human-readable explanation of visual comparison")
     spatial_diff_score: Optional[float] = Field(default=None, description="Patch-level spatial anomaly score")
     heatmap_path: Optional[str] = Field(default=None, description="Saved visual diff heatmap path")
 
