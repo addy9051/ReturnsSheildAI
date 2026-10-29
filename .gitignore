@@ -35,3 +35,8 @@ storage/certificates/*.json
 !storage/certificates/.gitkeep
 storage/synthetic_demo/
 
+# Rust build artifacts
+target/
+edge-gateway/target/
+*.pdb
+

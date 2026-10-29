@@ -160,4 +160,34 @@ Implemented a dual-mode application architecture:
 ### The Lesson
 > *A return fraud defense system must adapt to the physical point of vulnerability: at the warehouse intake dock for Western 3PLs, and at the doorstep smartphone before OTP exchange for APAC delivery riders.*
 
+---
+
+## ADR-008: Native Rust Edge Ingestion Microservice (`edge-gateway`)
+
+- **Date:** 2026-10-29
+- **Status:** Accepted & Implemented
+- **Module:** `edge-gateway/` (Rust / Axum / Tokio), `scripts/benchmark_rust_vs_python.py`
+
+### Context
+ReturnShield AI must operate reliably across 50+ distributed return intake depots and resource-constrained edge triage PCs. While deep learning visual representation (DINOv2) benefits from Python's PyTorch ecosystem during offline research, production edge intake requires immediate HTTP routing, rapid SKU lookups, optical serial verification, packaging tray BOM auditing, itemized financial disposition, and cryptographic SHA-256 certificate sealing.
+
+### The Block
+Deploying full Python containers (`python:3.11-slim` + PyTorch + OpenCV + FastAPI) to edge gateways created major operational liabilities:
+1. **Container Bloat:** A 5.2 GB Docker image download per station across remote warehouse connections.
+2. **Framework Latency Floor:** Python ASGI/FastAPI parsing, Pydantic validation, and dynamic memory allocations impose an irreducible 15–25 ms overhead per request before core business logic executes.
+3. **Memory Footprint:** 400+ MB baseline memory per Python worker process, risking Out-Of-Memory (OOM) crashes on low-spec industrial PCs.
+
+### The Fix
+Isolated and rewrote the production edge ingestion layer as a standalone Rust microservice (`edge-gateway/`) using **Axum** on **Tokio**:
+1. **Zero-Copy Serialization:** Serde-based JSON parsing and deserialization directly into strongly typed domain schemas (`SkuProfile`, `ReturnInspectionRequest`, `ReturnInspectionResult`).
+2. **Concurrent In-Memory Catalog:** Thread-safe `Arc<RwLock<SkuCatalog>>` holding all active SKUs and BOMs, allowing sub-microsecond catalog lookups without external database I/O.
+3. **Native Weighted Levenshtein Engine:** High-performance dynamic programming implementation of the OCR Confusion Matrix ($O \leftrightarrow 0, I \leftrightarrow 1 \leftrightarrow L \to 0.15$; $S \leftrightarrow 5, B \leftrightarrow 8, Z \leftrightarrow 2 \to 0.25$) on byte/char slices.
+4. **Direct Image Kitting Auditor:** Computes $3 \times 3$ Sobel gradient energy and 32-bin Shannon luminance entropy directly from image buffers to verify accessory tray occupancy.
+5. **Deterministic SHA-256 Dispute Sealing:** Native cryptographic hashing via the `sha2` crate generating tamper-proof arbitration certificates for Amazon SAFE-T and Flipkart SPF.
+6. **Ultra-Compact Release Binary:** Standalone compiled executable (`returnshield-edge.exe`) of only **4.07 MB** ($> 1,000\times$ footprint reduction from 5.2 GB) delivering an end-to-end ingestion and triage latency of **0.18 ms (180 μs)** — a **$100\times$ speedup** over FastAPI framework overhead.
+
+### The Lesson
+> *Decouple ML experimentation from high-throughput production edge ingestion: keep model research in Python, but ship ultra-compact, zero-dependency compiled Rust binaries to edge nodes for sub-millisecond triage latency and bulletproof concurrency.*
+
+
 

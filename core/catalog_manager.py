@@ -112,13 +112,21 @@ class DINOv2EmbeddingEngine:
         tensor = self._transform(pil_img).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
+            # Execute single forward pass extracting both CLS and patch tokens
+            intermediate = self.model.forward_features(tensor)
+            
             # 1. Global CLS embedding
-            global_feat = self.model(tensor)
+            if isinstance(intermediate, dict) and "x_norm_clstoken" in intermediate:
+                global_feat = intermediate["x_norm_clstoken"]
+            elif hasattr(intermediate, "x_norm_clstoken"):
+                global_feat = intermediate.x_norm_clstoken
+            else:
+                global_feat = self.model(tensor)
+                
             global_feat = global_feat / global_feat.norm(dim=-1, keepdim=True)
             global_np = global_feat.squeeze(0).cpu().numpy().astype(np.float32)
 
             # 2. Patch tokens
-            intermediate = self.model.forward_features(tensor)
             if isinstance(intermediate, dict) and "x_norm_patchtokens" in intermediate:
                 patch_tokens = intermediate["x_norm_patchtokens"]
             elif hasattr(intermediate, "x_norm_patchtokens"):
