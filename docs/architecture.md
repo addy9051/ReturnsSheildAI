@@ -12,7 +12,9 @@
 ### 1.1 The Market Wedge
 Mid-market DTC brands and 3PL warehouses handling high-value returns ($100–$2,000 electronics, power tools, audio gear) face an existential cost vector: **Return Fraud & Open-Box Condition Leakage**.
 - **Manual Baseline:** Warehouse operators spend 90–150 seconds per unit cross-checking paper RMAs, typing serial numbers from tiny metal engravings, manually verifying accessory trays, and evaluating cosmetic wear.
-- **ReturnShield Objective:** Collapse manual 2-minute triage into a **sub-3-second single-overhead-snapshot decision** that yields an itemized financial disposition and a cryptographically sealed dispute certificate.
+- **ReturnShield Objective:** Collapse manual 2-minute triage into a **sub-3-second single-snapshot decision** that yields an itemized financial disposition and a cryptographically sealed dispute certificate.
+  - **Form-Factor 1 (Warehouse Mode):** Overhead industrial bench station at 3PL intake docks.
+  - **Form-Factor 2 (Mobile Doorstep Mode):** Embedded in mobile delivery apps (Android / iOS). Allows field couriers conducting at-home reverse QC to point their phone camera at an open box, validating visual identity and engraved serials in 3 seconds before accepting the parcel or releasing the refund OTP.
 
 ### 1.2 Target Fraud Vectors
 1. **Bait-and-Switch Swaps:** Customer purchases an authentic $399 unit and returns an older generation, defective chassis, or generic counterfeit inside the authentic box.
@@ -225,3 +227,118 @@ To mathematically prove Phase 2 components before closing the phase:
 3. **Gate 3 (OCR Ambiguity Resolution Proof):**
    - Execute `tests/test_serial_verifier.py`.
    - **Assertion:** Given box serial `SN-SNY-8842109` and chassis OCR misread `SN-SNY-8842IO9` (`I` and `O` substituted), normalized score yields `NORMALIZED_MATCH` with similarity $\ge 0.95$. Given genuinely swapped serial `SN-SNY-1102934`, yields `MISMATCH` with similarity $< 0.60$.
+
+---
+
+## 8. External Benchmark Datasets & Commercial Licensing Matrix
+
+To benchmark ReturnShield AI while maintaining strict intellectual property compliance, models and evaluation pipelines must enforce commercial licensing boundaries:
+
+| Dataset | Modality / Task | Volume | License | Commercial Deployment Policy |
+| :--- | :--- | :--- | :--- | :--- |
+| **Amazon Berkeley Objects (ABO)** | Visual Identity, Multi-View Catalog 3D | 147k products, 398k images | CC BY 4.0 | **Permitted for Production**: Golden reference caching & metric evaluation. |
+| **VisA (Visual Anomaly)** | Kitting Tray, Missing Parts, PCB Assembly | 10,821 high-res images | CC BY 4.0 | **Permitted for Production**: Missing component slot segmentation. |
+| **TextOCR (OpenImages)** | Dense Scene OCR, Serial Plate Text | 900k word annotations | CC BY 4.0 | **Permitted for Production**: Pre-training & fine-tuning text recognition backbones. |
+| **Stanford Online Products (SOP)** | Fine-Grained Product Retrieval | 120k images, 22k classes | Research Only | **Restricted to Offline Benchmarks**: Forbidden in commercial deployed weights. |
+| **MVTec AD** | Surface Defect & Abrasion Segmentation | 5,354 images | CC BY-NC-SA 4.0 | **Restricted to Offline Benchmarks**: Cannot be redistributed in production commercial weights. |
+| **Muenster BarcodeDB** | Warped/Shiny 1D Barcode Decoding | 1,054 barcode images | CC BY-NC-ND | **Restricted to Offline Benchmarks**: Evaluation of reflective label decoding only. |
+
+---
+
+## 9. Warehouse Hardware Bench Physical Specification
+
+Software OCR algorithms alone cannot fully recover laser-etched characters washed out by direct specular highlights. The physical station deploys **Optical Cross-Polarization**:
+
+```mermaid
+flowchart TD
+    Light["High-Intensity LED Bar Light"] --> LinPol["Linear Polarizing Film (Horizontal 0 deg)"]
+    LinPol --> Surface["Metallic Serial Plate / Reflective Packaging"]
+    Surface -- "Specular Reflection (Preserves 0 deg Polarization)" --> Specular["Direct Glare Ray"]
+    Surface -- "Diffuse Reflection (Randomizes Polarization Angle)" --> Diffuse["Etched Text Diffuse Ray"]
+    Specular & Diffuse --> CPL["Circular Polarizer on Lens (Vertical 90 deg)"]
+    CPL -- "Blocks Horizontal 0 deg Light" --> Filtered["Zero Specular Glare"]
+    CPL -- "Transmits 50% Diffuse Light" --> Sensor["20MP Monochrome Global Shutter Sensor"]
+    Sensor --> HighContrast["High-Contrast Crisp Characters (Black-on-Dark-Grey)"]
+```
+
+### Station Physical BOM
+1. **Sensors:**
+   - Primary Serial/OCR Head: 20MP+ Monochrome Global Shutter (e.g. Basler ace 2 / FLIR Blackfly). Monochrome eliminates Bayer-filter interpolation blur, maximizing character stroke contrast.
+   - Overhead Overview Head: 12MP Color RGB Sensor for DINOv2 visual identity matching and accessory tray colorway inspection.
+2. **Illumination:** High-CRI LED bar lights with horizontal linear polarizing sheets ($0^\circ$).
+3. **Optics:** CPL lens filter oriented at $90^\circ$ relative to illumination polarizer. Eliminates specular reflections from metal engravings and plastic wrap.
+
+---
+
+## 10. Hierarchical Return Annotation Schema
+
+For training, validation, and benchmarking of multi-zone return inspection, all ground-truth datasets adhere to this hierarchical COCO extension:
+
+```json
+{
+  "image_id": "20261029_WH01_0042",
+  "product_sku": "SKU-SONY-WH1000XM5-BLK",
+  "capture_timestamp": "2026-10-29T15:30:00Z",
+  "rois": [
+    {
+      "roi_id": "roi_serial_chassis",
+      "class_id": "chassis_serial_plate",
+      "bbox_xywh": [420, 420, 340, 140],
+      "ocr_ground_truth": "SN-SNY-8842109",
+      "attributes": {
+        "material": "metallic_engraved",
+        "optical_glare_level": "low_cross_pol",
+        "readability_score": 0.99
+      }
+    },
+    {
+      "roi_id": "roi_barcode_box",
+      "class_id": "box_barcode_label",
+      "bbox_xywh": [40, 420, 340, 140],
+      "ocr_ground_truth": "SN-SNY-8842109",
+      "barcode_type": "Code128",
+      "readability_score": 0.98
+    },
+    {
+      "roi_id": "roi_tray_slot_usbc",
+      "class_id": "packaging_tray_slot",
+      "bbox_xywh": [40, 40, 140, 140],
+      "expected_item_id": "cable-usbc",
+      "status": "present_oem",
+      "anomaly_score": 0.02
+    },
+    {
+      "roi_id": "roi_tray_slot_case",
+      "class_id": "packaging_tray_slot",
+      "bbox_xywh": [40, 210, 320, 160],
+      "expected_item_id": "case-travel",
+      "status": "missing",
+      "anomaly_score": 0.88
+    },
+    {
+      "roi_id": "roi_product_chassis",
+      "class_id": "product_chassis_main",
+      "bbox_xywh": [30, 30, 360, 360],
+      "visual_identity_match": "authentic_black",
+      "defects": [
+        {
+          "defect_type": "scratch_deep",
+          "bbox_xywh": [85, 240, 50, 5],
+          "grade_penalty": "GRADE_C"
+        }
+      ]
+    }
+  ],
+  "ground_truth_triage": {
+    "fraud_flags": ["MISSING_ACCESSORY"],
+    "is_fraud": false,
+    "condition_grade": "GRADE_C",
+    "disposition_action": "PARTIAL_REFUND",
+    "itemized_deductions": [
+      {"reason": "Missing Hard Protective Case", "amount": 35.0},
+      {"reason": "Cosmetic Surface Scratch (Grade C)", "amount": 40.0}
+    ],
+    "net_refund_amount": 324.99
+  }
+}
+```

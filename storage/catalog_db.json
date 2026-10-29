@@ -7,12 +7,86 @@
     "restocking_fee_rate": 0.1,
     "expected_serial_regex": "^SN-SNY-[0-9]{7}$",
     "reference_image_paths": [
-      "storage\\catalog_images\\SKU-SONY-WH1000XM5-BLK\\ref_1.png"
+      "D:\\Downloads\\projects\\ReturnsSheildAI\\storage\\catalog_images\\SKU-SONY-WH1000XM5-BLK\\ref_1.png",
+      "D:\\Downloads\\projects\\ReturnsSheildAI\\storage\\catalog_images\\SKU-SONY-WH1000XM5-BLK\\ref_2.png"
     ],
     "bom": [
       {
-        "item_id": "cable-usbc",
-        "name": "USB-C Fast Cable",
+        "item_id": "cable-usbc-braided",
+        "name": "USB-C Braided Charging Cable (1.2m)",
+        "category": "cable",
+        "required_qty": 1,
+        "deduction_fee": 18.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "case-hard-travel",
+        "name": "Collapsible Hard Carrying Case",
+        "category": "case",
+        "required_qty": 1,
+        "deduction_fee": 38.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "cable-35mm-audio",
+        "name": "3.5mm Gold-Plated Audio Jack Cable",
+        "category": "cable",
+        "required_qty": 1,
+        "deduction_fee": 14.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "doc-quickstart",
+        "name": "Quick Start & Warranty Documentation",
+        "category": "manual",
+        "required_qty": 1,
+        "deduction_fee": 5.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      }
+    ],
+    "similarity_threshold": 0.86,
+    "created_at": "2026-10-29T15:47:18.243765",
+    "updated_at": "2026-10-29T15:47:18.243765",
+    "metadata": {
+      "brand": "Sony",
+      "generation": "5",
+      "connectivity": "Bluetooth 5.2 / LDAC",
+      "weight_grams": 250,
+      "swap_attack_target": "Sony XM4 (Gen 4 swap fraud)"
+    }
+  },
+  "SKU-BOSE-QCU-BLK": {
+    "sku_id": "SKU-BOSE-QCU-BLK",
+    "title": "Bose QuietComfort Ultra Wireless Noise Cancelling Headphones - Black",
+    "category": "Consumer Electronics / Audio",
+    "msrp": 429.0,
+    "restocking_fee_rate": 0.1,
+    "expected_serial_regex": "^084[0-9]{13}$",
+    "reference_image_paths": [
+      "D:\\Downloads\\projects\\ReturnsSheildAI\\storage\\catalog_images\\SKU-BOSE-QCU-BLK\\ref_1.png"
+    ],
+    "bom": [
+      {
+        "item_id": "bose-case-hardshell",
+        "name": "Bose Protective Carry Case",
+        "category": "case",
+        "required_qty": 1,
+        "deduction_fee": 40.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "bose-usbc-cable",
+        "name": "USB-C to USB-A Cable (12 in)",
         "category": "cable",
         "required_qty": 1,
         "deduction_fee": 15.0,
@@ -21,18 +95,110 @@
         "reference_embedding": null
       },
       {
-        "item_id": "case-travel",
-        "name": "Hard Protective Case",
+        "item_id": "bose-aux-cable",
+        "name": "3.5mm to 2.5mm Audio Cable",
+        "category": "cable",
+        "required_qty": 1,
+        "deduction_fee": 15.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      }
+    ],
+    "similarity_threshold": 0.85,
+    "created_at": "2026-10-29T15:47:22.318526",
+    "updated_at": "2026-10-29T15:47:22.318526",
+    "metadata": {
+      "brand": "Bose",
+      "generation": "Ultra",
+      "swap_attack_target": "Bose QC45 or QC35 II"
+    }
+  },
+  "SKU-APPLE-APM-SLV": {
+    "sku_id": "SKU-APPLE-APM-SLV",
+    "title": "Apple AirPods Max Wireless Over-Ear Headphones - Silver",
+    "category": "Consumer Electronics / Audio",
+    "msrp": 549.0,
+    "restocking_fee_rate": 0.15,
+    "expected_serial_regex": "^[A-Z0-9]{12}$",
+    "reference_image_paths": [
+      "D:\\Downloads\\projects\\ReturnsSheildAI\\storage\\catalog_images\\SKU-APPLE-APM-SLV\\ref_1.png"
+    ],
+    "bom": [
+      {
+        "item_id": "apple-smart-case",
+        "name": "Apple Magnetic Smart Case",
         "category": "case",
         "required_qty": 1,
-        "deduction_fee": 35.0,
+        "deduction_fee": 59.0,
+        "expected_tray_slot": null,
+        "is_critical": true,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "apple-usbc-lightning",
+        "name": "Lightning to USB-C Cable (1m)",
+        "category": "cable",
+        "required_qty": 1,
+        "deduction_fee": 19.0,
         "expected_tray_slot": null,
         "is_critical": false,
         "reference_embedding": null
       },
       {
-        "item_id": "doc-manual",
-        "name": "Quick Start & Warranty Guide",
+        "item_id": "apple-ear-cushions",
+        "name": "AirPods Max Ear Cushions Pair",
+        "category": "cushion",
+        "required_qty": 1,
+        "deduction_fee": 69.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      }
+    ],
+    "similarity_threshold": 0.88,
+    "created_at": "2026-10-29T15:47:23.144154",
+    "updated_at": "2026-10-29T15:47:23.144154",
+    "metadata": {
+      "brand": "Apple",
+      "finish": "Anodized Aluminum Silver",
+      "swap_attack_target": "Counterfeit plastic clone / knockoff"
+    }
+  },
+  "SKU-DEWALT-DCD800B": {
+    "sku_id": "SKU-DEWALT-DCD800B",
+    "title": "DEWALT 20V MAX XR 1/2-in Brushless Cordless Drill/Driver",
+    "category": "Power Tools / Cordless",
+    "msrp": 179.0,
+    "restocking_fee_rate": 0.1,
+    "expected_serial_regex": "^DW-[0-9]{8}$",
+    "reference_image_paths": [
+      "D:\\Downloads\\projects\\ReturnsSheildAI\\storage\\catalog_images\\SKU-DEWALT-DCD800B\\ref_1.png"
+    ],
+    "bom": [
+      {
+        "item_id": "dewalt-belt-hook",
+        "name": "Heavy-Duty Steel Belt Hook & Screw",
+        "category": "mount",
+        "required_qty": 1,
+        "deduction_fee": 12.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "dewalt-bit-holder",
+        "name": "Magnetic Bit Holder Attachment",
+        "category": "accessory",
+        "required_qty": 1,
+        "deduction_fee": 8.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "dewalt-manual",
+        "name": "Instruction Manual & Warranty",
         "category": "manual",
         "required_qty": 1,
         "deduction_fee": 5.0,
@@ -42,8 +208,72 @@
       }
     ],
     "similarity_threshold": 0.85,
-    "created_at": "2026-10-29T14:30:02.797991",
-    "updated_at": "2026-10-29T14:30:02.797991",
-    "metadata": {}
+    "created_at": "2026-10-29T15:47:23.471654",
+    "updated_at": "2026-10-29T15:47:23.471654",
+    "metadata": {
+      "brand": "DEWALT",
+      "color": "Industrial Yellow & Matte Black",
+      "swap_attack_target": "Brushed motor legacy DCD771 swap"
+    }
+  },
+  "SKU-DYSON-V15-DET": {
+    "sku_id": "SKU-DYSON-V15-DET",
+    "title": "Dyson V15 Detect Cordless Vacuum Cleaner",
+    "category": "Home Appliances / Floorcare",
+    "msrp": 749.99,
+    "restocking_fee_rate": 0.15,
+    "expected_serial_regex": "^V15-[A-Z0-9]{10}$",
+    "reference_image_paths": [
+      "D:\\Downloads\\projects\\ReturnsSheildAI\\storage\\catalog_images\\SKU-DYSON-V15-DET\\ref_1.png"
+    ],
+    "bom": [
+      {
+        "item_id": "dyson-fluffy-head",
+        "name": "Laser Slim Fluffy Cleaner Head",
+        "category": "cleaner_head",
+        "required_qty": 1,
+        "deduction_fee": 129.0,
+        "expected_tray_slot": null,
+        "is_critical": true,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "dyson-digital-head",
+        "name": "Digital Motorbar Cleaner Head",
+        "category": "cleaner_head",
+        "required_qty": 1,
+        "deduction_fee": 99.0,
+        "expected_tray_slot": null,
+        "is_critical": true,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "dyson-hair-screw",
+        "name": "Hair Screw Tool (Anti-Tangle)",
+        "category": "tool",
+        "required_qty": 1,
+        "deduction_fee": 49.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      },
+      {
+        "item_id": "dyson-dock-station",
+        "name": "Wall Dok and Charger (21.6V)",
+        "category": "charger",
+        "required_qty": 1,
+        "deduction_fee": 55.0,
+        "expected_tray_slot": null,
+        "is_critical": false,
+        "reference_embedding": null
+      }
+    ],
+    "similarity_threshold": 0.87,
+    "created_at": "2026-10-29T15:47:23.921340",
+    "updated_at": "2026-10-29T15:47:23.921340",
+    "metadata": {
+      "brand": "Dyson",
+      "swap_attack_target": "Older Dyson V10/V11 or non-laser cleaner head swap"
+    }
   }
 }

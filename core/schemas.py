@@ -283,3 +283,50 @@ class ReturnInspectionResult(BaseModel):
             self.is_fraud = True
         return self
 
+
+# ==============================================================================
+# Ground-Truth Benchmark & Dataset Annotation Schemas
+# ==============================================================================
+
+class ROIAnnotation(BaseModel):
+    """Hierarchical region of interest within a multi-zone return inspection image."""
+    model_config = ConfigDict(extra="ignore")
+
+    roi_id: str = Field(..., description="Unique ROI identifier within the capture")
+    class_id: str = Field(..., description="ROI category: chassis_serial_plate, box_barcode_label, packaging_tray_slot, product_chassis_main")
+    bbox_xywh: List[int] = Field(..., min_length=4, max_length=4, description="Bounding box [x, y, width, height]")
+    ocr_ground_truth: Optional[str] = Field(default=None, description="Ground truth text for serial plate or barcode")
+    barcode_type: Optional[str] = Field(default=None, description="Symbology type: Code128, QR, DataMatrix, etc.")
+    expected_item_id: Optional[str] = Field(default=None, description="Expected BOM item ID for tray slots")
+    status: Optional[str] = Field(default=None, description="Status: present_oem, missing, substituted, damaged")
+    anomaly_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Target ground truth defect/anomaly score")
+    defects: List[Dict[str, Any]] = Field(default_factory=list, description="Annotated surface defects within this ROI")
+    attributes: Dict[str, Any] = Field(default_factory=dict, description="Material, lighting, or surface properties")
+
+
+class GroundTruthTriageDecision(BaseModel):
+    """Supervised ground-truth decision for benchmark evaluation."""
+    model_config = ConfigDict(extra="ignore")
+
+    fraud_flags: List[FraudFlag] = Field(default_factory=list)
+    is_fraud: bool = Field(default=False)
+    condition_grade: ConditionGrade = Field(default=ConditionGrade.GRADE_A)
+    disposition_action: DispositionAction = Field(default=DispositionAction.FULL_REFUND)
+    itemized_deductions: List[Dict[str, Any]] = Field(default_factory=list)
+    net_refund_amount: float = Field(default=0.0, ge=0.0)
+    routing_instruction: Optional[str] = None
+
+
+class TriageGroundTruthAnnotation(BaseModel):
+    """Complete dataset record format for real-world return triage benchmarking."""
+    model_config = ConfigDict(extra="ignore")
+
+    image_id: str = Field(..., description="Unique image or capture ID")
+    product_sku: str = Field(..., description="Catalog SKU identifier")
+    capture_timestamp: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    image_path: Optional[str] = Field(default=None, description="Relative or absolute path to overhead capture")
+    rois: List[ROIAnnotation] = Field(default_factory=list, description="Segmented inspection ROIs")
+    ground_truth_triage: Optional[GroundTruthTriageDecision] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+

@@ -89,3 +89,49 @@ Implemented a domain-specific **OCR Confusion Matrix**:
 
 ### The Lesson
 > *Never use unweighted string equality on OCR-extracted industrial serials without a visual confusion penalty matrix.*
+
+---
+
+## ADR-005: Commercial Dataset Licensing Governance (CC BY 4.0 vs CC BY-NC)
+
+- **Date:** 2026-10-29
+- **Status:** Accepted & Enforced
+- **Module:** `core/catalog_manager.py`, `core/swap_detector.py`, Training Pipelines
+
+### Context
+Benchmarking and fine-tuning computer vision backbones requires large volumes of e-commerce and defect imagery (ABO, VisA, MVTec AD, Stanford Online Products).
+
+### The Block
+High-profile benchmark datasets (specifically MVTec AD and Stanford Online Products) carry strict Non-Commercial licenses (`CC BY-NC-SA 4.0` / Research Only). Training production model weights on these datasets or embedding their features into commercial warehouse SaaS artifacts creates major intellectual property liabilities and violates commercial licensing terms.
+
+### The Fix
+Established a dual-track data governance policy:
+1. **Commercially Certified Assets (Production):** Amazon Berkeley Objects (ABO, CC BY 4.0), VisA (CC BY 4.0), and TextOCR (CC BY 4.0) are cleared for catalog reference caching, embedding generation, and commercial deployment weights.
+2. **Benchmark-Only Assets (Offline Research):** MVTec AD and SOP are strictly isolated to offline architectural benchmarking and comparative algorithm evaluation. No derivative model weights trained on these sets may be packaged into production releases.
+
+### The Lesson
+> *Never allow non-commercial (CC BY-NC) research datasets to enter production model weight artifacts or runtime embedding caches.*
+
+---
+
+## ADR-006: Hardware-Level Specular Glare Cancellation (Cross-Polarization Optics)
+
+- **Date:** 2026-10-29
+- **Status:** Accepted & Specified
+- **Module:** Hardware Triage Bench Physical Rig, `core/serial_verifier.py`
+
+### Context
+Laser-etched serial characters on brushed aluminum, chrome, or glossy plastics reflect warehouse overhead lighting, creating high-intensity specular highlights (glare) that wash out character strokes.
+
+### The Block
+Pure software post-processing (CLAHE, bilateral filtering, gamma correction) cannot recover character information when camera sensor pixels are clipped at maximum luminance saturation (value 255 across all channels).
+
+### The Fix
+Specified an optical **Cross-Polarization** bench rig:
+- A horizontal linear polarizing sheet ($0^\circ$) is mounted over high-intensity LED bar illuminators.
+- A circular polarizer (CPL) oriented vertically ($90^\circ$) is mounted on the camera lens.
+- Because specular reflection preserves polarization angle while diffuse reflection randomizes it, the lens filter physically extinguishes direct glare rays, rendering etched serial characters as high-contrast black-on-dark-gray without software hallucination.
+
+### The Lesson
+> *Never attempt to solve pixel saturation through software algorithms when an optical cross-polarization filter physically eliminates the reflection at the lens.*
+
