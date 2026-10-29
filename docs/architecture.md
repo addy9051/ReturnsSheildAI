@@ -1,0 +1,225 @@
+# Architecture Specification: ReturnShield AI
+
+> **Status:** Living Specification  
+> **Author:** Staff Software Engineer & Technical Architect  
+> **Domain:** 3PL Warehouse Open-Box Return Fraud & Condition Grading Engine  
+> **SLA Target:** $< 3.0$ seconds total station triage latency per unit
+
+---
+
+## 1. System Objectives & Business Context
+
+### 1.1 The Market Wedge
+Mid-market DTC brands and 3PL warehouses handling high-value returns ($100–$2,000 electronics, power tools, audio gear) face an existential cost vector: **Return Fraud & Open-Box Condition Leakage**.
+- **Manual Baseline:** Warehouse operators spend 90–150 seconds per unit cross-checking paper RMAs, typing serial numbers from tiny metal engravings, manually verifying accessory trays, and evaluating cosmetic wear.
+- **ReturnShield Objective:** Collapse manual 2-minute triage into a **sub-3-second single-overhead-snapshot decision** that yields an itemized financial disposition and a cryptographically sealed dispute certificate.
+
+### 1.2 Target Fraud Vectors
+1. **Bait-and-Switch Swaps:** Customer purchases an authentic $399 unit and returns an older generation, defective chassis, or generic counterfeit inside the authentic box.
+2. **Serial Number Peel / Sticker Fraud:** Returner peels outer packaging barcode stickers or swaps an older broken chassis with a different serial number into new packaging.
+3. **Accessory Cannibalization:** Customer retains $30–$80 OEM accessories (chargers, braided cables, travel cases) and returns an incomplete unit expecting a 100% refund.
+4. **Cosmetic Abuse Concealment:** Units with heavy scratches, abrasions, or cracks returned under "Like New" claims.
+
+---
+
+## 2. End-to-End System Architecture
+
+```mermaid
+flowchart TD
+    subgraph Station["Overhead Camera Station (< 3s SLA)"]
+        RawSnap["Single Overhead Snapshot (RGB, 4K)"]
+        ROI_Chassis["Zone 1: Product Chassis ROI"]
+        ROI_Tray["Zone 2: Accessory Tray ROI"]
+        ROI_BoxBar["Zone 3: Outer Box Barcode"]
+        ROI_Serial["Zone 4: Chassis Serial Plate"]
+        RawSnap --> ROI_Chassis & ROI_Tray & ROI_BoxBar & ROI_Serial
+    end
+
+    subgraph Phase1["Stage 1: Catalog & Representation (Implemented)"]
+        CatDB[("catalog_db.json<br/>SKU Metadata & BOM")]
+        EmbCache[("embeddings/*.npz<br/>DINOv2 Vector Cache")]
+        CatDB & EmbCache --> CatMgr["CatalogManager"]
+    end
+
+    subgraph Phase2["Stage 2: Core Fraud Engines (Active Spec)"]
+        ROI_Chassis --> DINO_Extract["DINOv2 Feature Extractor<br/>dinov2_vits14"]
+        EmbCache --> DINO_Extract
+        DINO_Extract --> SwapDet["Swap Detector<br/>(Global + Patch Heatmap)"]
+        
+        ROI_BoxBar --> BarcodeEngine["1D/2D Barcode Decoder<br/>(cv2.barcode)"]
+        ROI_Serial --> OCREngine["Chassis Serial OCR<br/>(CLAHE + Scene OCR)"]
+        BarcodeEngine & OCREngine --> NormEngine["OCR Normalizer &<br/>Weighted Levenshtein"]
+        NormEngine --> SerialVerifier["Dual-Serial Verifier"]
+    end
+
+    subgraph Phase3["Stage 3: Kitting & Financial Disposition"]
+        ROI_Tray --> KittingAuditor["Kitting Auditor<br/>(BOM Presence Verification)"]
+        SwapDet & SerialVerifier & KittingAuditor --> DispEngine["Disposition Engine"]
+        DispEngine --> CryptoCert["SHA-256 Audit Certificate<br/>(Stripe / Amazon SAFE-T)"]
+    end
+```
+
+---
+
+## 3. Data Contracts & Domain Boundaries (`core/schemas.py`)
+
+All cross-module communication is strictly governed by immutable Pydantic v2 schemas:
+
+### 3.1 Domain Enums
+- **`FraudFlag`:** `CLEAN`, `BAIT_AND_SWITCH`, `SERIAL_MISMATCH`, `MISSING_ACCESSORY`, `UNAUTHORIZED_ACCESSORY_SUBSTITUTION`, `PHYSICAL_DAMAGE`, `TAMPERED_SERIAL_LABEL`, `COUNTERFEIT`.
+- **`ConditionGrade`:** `GRADE_A` (0% wear deduction), `GRADE_B` (10–15% deduction), `GRADE_C` (30–50% deduction), `FRAUD_HOLD` (0% refund, 100% deduction).
+- **`DispositionAction`:** `FULL_REFUND`, `PARTIAL_REFUND`, `REJECT_FRAUD_HOLD`, `MANUAL_SECONDARY_REVIEW`.
+- **`SerialMatchStatus`:** `EXACT_MATCH`, `NORMALIZED_MATCH`, `MISMATCH`, `MISSING_LABEL`, `OCR_UNREADABLE`.
+- **`IdentityMatchStatus`:** `VERIFIED_OEM`, `SUSPECTED_SWAP`, `CONFIRMED_SWAP`.
+
+### 3.2 Invariants & Validation Constraints
+- **Invariant 1 (Automatic Fraud Enforcement):** If `fraud_flags` contains `BAIT_AND_SWITCH` or `SERIAL_MISMATCH`, `ReturnInspectionResult.is_fraud` automatically resolves to `True` via `@model_validator(mode="after")`.
+- **Invariant 2 (Non-Negative Financials):** All MSRP values must satisfy $MSRP > 0$. Restocking fees and accessory deduction values must satisfy $0 \le Fee \le MSRP$. Refund net amount cannot drop below $\$0.00$.
+- **Invariant 3 (Cryptographic Sealing):** `AuditEvidenceCertificate` computes a deterministic SHA-256 hash digest of all evidence parameters (`rma_number`, `sku_id`, `disposition_action`, `cosine_similarity`, `serial_match`). Any post-inspection tampering changes the digest and invalidates dispute packages.
+
+---
+
+## 4. Phase 1: Zero-Training SKU Catalog Onboarding (`core/catalog_manager.py`)
+
+### 4.1 "Why" DINOv2 (`dinov2_vits14`) Over Custom Models
+- **Why no fine-tuning or custom training?** Warehouse catalogs churn weekly. A 3PL cannot afford to label hundreds of defect images or train custom contrastive networks per client SKU.
+- **Why DINOv2?** Self-supervised Vision Transformers trained on LVD-142M possess zero-shot semantic features that separate product models, generations, and colorways out-of-the-box.
+- **Why `dinov2_vits14` instead of `vitb14` or `vitl14`?**
+  - Inference budget: $250\text{ ms}$ on CUDA (vs $800\text{ ms}$ for base, $2100\text{ ms}$ for large).
+  - Preserves $< 3.0\text{ s}$ total station SLA while maintaining $> 0.15$ cosine separation between legitimate models and lookalike swaps.
+
+### 4.2 Storage Layout
+```text
+storage/
+├── catalog_db.json                 # JSON metadata: SKU ID, title, MSRP, BOM checklist
+├── catalog_images/<sku_id>/        # Golden reference photos (1 to 3 images)
+└── embeddings/<sku_id>.npz         # Cached L2-normalized global vector (384-dim)
+                                    # and patch tokens array (256 x 384)
+```
+
+---
+
+## 5. Phase 2: Active Specification — Core Verification Engines
+
+### 5.1 Identity & Swap Detector (`core/swap_detector.py`)
+
+#### Problem Statement
+A returned product may match the general form factor (e.g. over-ear headphones), but have counterfeit materials, swapped headband components, or a completely different generation/model.
+
+```mermaid
+stateDiagram-v2
+    [*] --> IngestChassis
+    IngestChassis --> ExtractDINOv2: Run dinov2_vits14
+    ExtractDINOv2 --> ComputeGlobalCosine: Dot product with Cached SKU Vector
+    
+    state GlobalDecision <<choice>>
+    ComputeGlobalCosine --> GlobalDecision
+    
+    GlobalDecision --> HighConfidenceOEM: Cosine >= 0.88
+    GlobalDecision --> BorderlineZone: 0.70 <= Cosine < 0.88
+    GlobalDecision --> ConfirmedSwap: Cosine < 0.70
+    
+    state PatchInspection {
+        BorderlineZone --> ComputePatchDistanceMap
+        ComputePatchDistanceMap --> SpatialGaussianSmooth
+        SpatialGaussianSmooth --> GenerateHeatmapOverlay
+        GenerateHeatmapOverlay --> PeakPatchThresholdCheck
+    }
+    
+    PeakPatchThresholdCheck --> SuspectedSwap: Peak Patch Anomaly > 0.45
+    PeakPatchThresholdCheck --> HighConfidenceOEM: Peak Patch Anomaly <= 0.45
+    
+    HighConfidenceOEM --> ReturnOEMResult: Status = VERIFIED_OEM
+    SuspectedSwap --> ReturnSwapResult: Status = SUSPECTED_SWAP, Flag = BAIT_AND_SWITCH
+    ConfirmedSwap --> ReturnSwapResult: Status = CONFIRMED_SWAP, Flag = BAIT_AND_SWITCH
+```
+
+#### Dense Patch Anomaly Grid Mathematics
+1. Let $\mathbf{T} \in \mathbb{R}^{N \times D}$ be the L2-normalized patch tokens of the return unit ($N = 256, D = 384$).
+2. Let $\mathbf{R} \in \mathbb{R}^{M \times D}$ be the reference patch tokens stored in the catalog.
+3. Compute the pairwise patch similarity matrix:
+   $$\mathbf{S} = \mathbf{T} \mathbf{R}^T \in \mathbb{R}^{N \times M}$$
+4. For each test patch $i$, its anomaly score $A_i$ is its distance from its nearest neighbor in the reference set:
+   $$A_i = 1.0 - \max_{j} (\mathbf{S}_{i, j})$$
+5. Reshape $\mathbf{A} \in \mathbb{R}^{N}$ into grid $(16 \times 16)$, apply Gaussian smoothing ($\sigma = 1.2$), and upsample via bicubic interpolation to original image dimensions $(H, W)$.
+6. Apply OpenCV `COLORMAP_JET` overlay to visually highlight tampered or substituted components.
+
+---
+
+### 5.2 Dual-Serial OCR Verifier (`core/serial_verifier.py`)
+
+#### Problem Statement
+Fraudulent returns frequently feature a legitimate outer box barcode matching the RMA, while the physical unit inside carries a different serial number (from an older, broken, or stolen device) or a tampered/scratched label.
+
+```mermaid
+flowchart LR
+    subgraph Input
+        Box["Box Shipping Barcode ROI"]
+        Chassis["Chassis Serial Plate ROI"]
+    end
+
+    subgraph BoxDecode["Outer Box Extraction"]
+        Box --> BarcodeDet["cv2.barcode.BarcodeDetector"]
+        BarcodeDet --> RawBoxStr["Raw Box Barcode: 'SN-SNY-8842109'"]
+    end
+
+    subgraph ChassisOCR["Chassis Serial Extraction"]
+        Chassis --> CLAHE["CLAHE Contrast Enhancement"]
+        CLAHE --> Bilateral["Bilateral Filter (Denoise)"]
+        Bilateral --> Binarize["Adaptive Otsu Binarization"]
+        Binarize --> SceneOCR["Chassis Serial Text Extractor"]
+        SceneOCR --> RawChassisStr["Raw Chassis OCR: 'SN-SNY-8842IO9'"]
+    end
+
+    subgraph Normalization["Ambiguity Resolution & Normalization"]
+        RawBoxStr & RawChassisStr --> UpperStrip["Uppercase & Strip Separators"]
+        UpperStrip --> ConfusionMap["Apply OCR Confusion Matrix<br/>(O<->0, I<->1<->L, S<->5, Z<->2)"]
+        ConfusionMap --> RegexMask["SKU Expected Serial Regex Validation"]
+        RegexMask --> WeightedLev["Weighted Levenshtein Scoring"]
+    end
+
+    subgraph Decision["Serial Verification Output"]
+        WeightedLev --> ResultClass{"Normalized Distance"}
+        ResultClass -- "Dist == 0.0" --> EXACT["EXACT_MATCH"]
+        ResultClass -- "0.0 < Dist <= 0.25" --> NORM["NORMALIZED_MATCH"]
+        ResultClass -- "Dist > 0.25" --> MISMATCH["MISMATCH (Flag Fraud)"]
+    end
+```
+
+#### The OCR Visual Confusion Matrix
+Standard Levenshtein assigns substitution cost = 1.0. In industrial camera triage, optical glare and micro-stamping cause predictable errors:
+$$\text{Cost}(c_1, c_2) = \begin{cases}
+0.0 & \text{if } c_1 = c_2 \\
+0.15 & \text{if } \{c_1, c_2\} \subseteq \{\text{'O'}, \text{'0'}\} \text{ or } \{\text{'I'}, \text{'1'}, \text{'L'}\} \\
+0.25 & \text{if } \{c_1, c_2\} \subseteq \{\text{'S'}, \text{'5'}\} \text{ or } \{\text{'B'}, \text{'8'}\} \text{ or } \{\text{'Z'}, \text{'2'}\} \\
+1.00 & \text{otherwise}
+\end{cases}$$
+
+Normalized similarity ratio:
+$$\text{SimRatio} = 1.0 - \frac{\text{WeightedEditDistance}(S_{\text{box}}, S_{\text{chassis}})}{\max(\text{len}(S_{\text{box}}), \text{len}(S_{\text{chassis}}))}$$
+
+---
+
+## 6. Hidden Constraints, Edge Cases & Business Logic
+
+1. **Edge Case: Glossy/Reflective Chassis Glare:** Metallic engraved plates reflect warehouse ring lights, washing out laser-etched serial characters.
+   - *Mitigation:* The OCR pipeline must execute CLAHE (Contrast Limited Adaptive Histogram Equalization) in LAB color space (channel L) to equalize harsh local highlights before thresholding.
+2. **Constraint: Zero False Accusations on Legitimate Customers:** Flagging an innocent customer as `BAIT_AND_SWITCH` creates severe customer service friction.
+   - *Rule:* A unit with borderline similarity ($0.75 \le \text{Cosine} < 0.85$) cannot be auto-rejected. It must be routed to `MANUAL_SECONDARY_REVIEW` with an overlaid heatmap indicating where the camera detected deviation.
+3. **Business Logic: Accessory Deduction Precedence:** Missing accessories do *not* escalate to fraud if the serial numbers and chassis identity match. They trigger itemized deductions (e.g. $-\$35.00$ for travel case) yielding `PARTIAL_REFUND`. Only unauthorized foreign non-OEM substitutions on critical components trigger fraud hold.
+
+---
+
+## 7. Vertical Slice Verification Plan (Phase 2 Gates)
+
+To mathematically prove Phase 2 components before closing the phase:
+
+1. **Gate 1 (Swap Separation Proof):**
+   - Execute `pytest tests/test_triage_pipeline.py -k test_dinov2_similarity_scoring`.
+   - **Assertion:** Cosine similarity for genuine items $\ge 0.90$. Cosine similarity for swapped beige or neon items $< 0.80$. Separation gap $\Delta \ge 0.15$.
+2. **Gate 2 (Spatial Heatmap Proof):**
+   - Execute `tests/test_swap_detector.py`.
+   - **Assertion:** Heatmap image file is written to disk, dimensions equal input ROI, peak anomaly pixel $\in [0, 255]$ with localized concentration on the swapped region.
+3. **Gate 3 (OCR Ambiguity Resolution Proof):**
+   - Execute `tests/test_serial_verifier.py`.
+   - **Assertion:** Given box serial `SN-SNY-8842109` and chassis OCR misread `SN-SNY-8842IO9` (`I` and `O` substituted), normalized score yields `NORMALIZED_MATCH` with similarity $\ge 0.95$. Given genuinely swapped serial `SN-SNY-1102934`, yields `MISMATCH` with similarity $< 0.60$.
