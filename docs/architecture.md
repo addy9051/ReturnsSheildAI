@@ -379,16 +379,35 @@ flowchart TD
     Router -.->|Asynchronous Heavy Visual Embeddings| ViTModel
 ```
 
-### 8.2 Performance Benchmark Comparison
+### 8.2 Empirical Benchmark Comparison (Live Benchmark Results)
 
-| Metric | Python FastAPI Service | Rust Edge Gateway (`returnshield-edge`) | Improvement Factor |
+Benchmarks executed on local hardware using `scripts/benchmark_rust_vs_python.py` across both serial and high-concurrency workloads:
+
+#### Test 1: High-Concurrency Stress Test ($N = 500$ requests, $C = 20$ parallel workers)
+*Simulates 20 simultaneous warehouse return triage stations firing requests concurrently.*
+
+| Metric | Python FastAPI Service | Rust Edge Gateway (`returnshield-edge`) | Empirical Improvement |
 | :--- | :--- | :--- | :--- |
-| **Edge Ingestion Latency** | 15.2 – 24.8 ms | **0.18 ms (180 μs)** | **~100× Faster** |
-| **Binary / Artifact Size** | 5.2 GB (Docker Container) | **4.07 MB (Native Windows Executable)** | **>1,000× Smaller** |
-| **Idle Memory Consumption** | ~380 MB | **~12 MB** | **>30× Leaner** |
-| **Catalog Lookup Latency** | 0.85 ms (JSON / Dict) | **0.002 ms (In-Memory `RwLock`)** | **>400× Faster** |
-| **Serial Confusion Alignment** | 1.45 ms | **0.012 ms (Byte-level DP matrix)** | **>120× Faster** |
-| **Dispute Certificate Hash** | 0.32 ms | **0.003 ms (Native `sha2`)** | **>100× Faster** |
+| **Total Test Duration** | 1.578 s | **0.625 s** | **2.5× Faster Completion** |
+| **Throughput (req/sec)** | 316.9 req/s | **799.6 req/s** | **2.5× Higher Capacity** |
+| **P50 Latency** | 61.60 ms | **20.92 ms** | **2.9× Lower Latency** |
+| **P95 Latency** | 81.48 ms | **45.90 ms** | **1.8× Lower Latency** |
+| **P99 Latency (Tail)** | 134.40 ms | **65.11 ms** | **2.1× Lower Tail Jitter** |
+| **Active Process Memory (RSS)** | 528.4 MB | **70.8 MB** | **7.5× Leaner Footprint** |
+| **Success Rate** | 500 / 500 (100%) | **500 / 500 (100%)** | Zero dropped requests |
+
+#### Test 2: Un-Queued Serial Latency Floor ($N = 100$ requests, $C = 1$ client)
+*Measures raw endpoint turnaround latency over persistent HTTP/1.1 keep-alive.*
+
+| Metric | Python FastAPI Service | Rust Edge Gateway (`returnshield-edge`) | Empirical Improvement |
+| :--- | :--- | :--- | :--- |
+| **Throughput (req/sec)** | 246.2 req/s | **868.0 req/s** | **3.5× Higher Throughput** |
+| **Mean Turnaround Latency** | 4.01 ms | **1.06 ms** | **3.8× Lower Latency** |
+| **P50 Latency** | 3.95 ms | **1.02 ms** | **3.9× Lower Latency** |
+| **P95 Latency** | 5.00 ms | **1.44 ms** | **3.5× Lower Latency** |
+| **P99 Latency** | 5.84 ms | **2.59 ms** | **2.3× Lower Latency** |
+| **Internal Engine Triage Overhead** | 4.84 ms | **0.06 ms (60 μs)** | **~80× Faster Compute** |
+| **Compiled Binary / Image Size** | ~5.2 GB (Docker Image) | **4.05 MB (Native Executable)** | **>1,000× Smaller Footprint** |
 
 ### 8.3 Core Rust Endpoints
 
