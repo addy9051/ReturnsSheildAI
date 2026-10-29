@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>ReturnShield AI | Doorstep QC</title>
+  <meta name="theme-color" content="#0F172A">
+  <meta name="description" content="Doorstep Reverse QC & Immediate OTP Verification for Delivery Couriers">
+  <link rel="manifest" href="/doorstep/manifest.json">
+  <link rel="icon" type="image/png" href="/doorstep/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/doorstep/icons/icon-192.png">
+  <link rel="stylesheet" href="/doorstep/styles.css">
+</head>
+<body>
+
+  <!-- Top App Bar -->
+  <header class="app-header">
+    <div class="brand-badge">
+      <img src="/doorstep/icons/icon-192.png" alt="ReturnShield Logo">
+      <div>
+        <div class="brand-title">ReturnShield QC</div>
+        <div style="font-size: 10px; color: var(--text-muted);">Doorstep Reverse Station</div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center;">
+      <span class="rider-tag" id="networkStatus">🟢 Online</span>
+      <span class="rider-tag" style="background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border-color: #475569;">RIDER #4092</span>
+    </div>
+  </header>
+
+  <!-- Main Viewport -->
+  <main class="main-container">
+
+    <!-- Order Manifest Inputs -->
+    <section class="order-card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="field-label">1. Order Manifest Information</span>
+        <span style="font-size: 10px; color: #38bdf8; font-weight: 600;">Ekart / ATS Reverse</span>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div class="field-group">
+          <label class="field-label" for="rmaInput">RMA / Order ID</label>
+          <input type="text" id="rmaInput" class="field-input" value="RMA-MUM-2026-08" placeholder="e.g. RMA-9981">
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="barcodeInput">Manifest Serial / Barcode</label>
+          <input type="text" id="barcodeInput" class="field-input" value="SN-SNY-8842109" placeholder="Scanned Serial">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="skuSelect">Expected Catalog SKU</label>
+        <select id="skuSelect" class="field-select">
+          <option value="SKU-SONY-WH1000XM5-BLK">Sony WH-1000XM5 ANC Headphones ($399.99)</option>
+          <option value="SKU-APPLE-AIRPODS-MAX-SLV">Apple AirPods Max ($549.00)</option>
+          <option value="SKU-DJI-MINI-4-PRO">DJI Mini 4 Pro Drone ($759.00)</option>
+          <option value="SKU-ANKER-737-PB">Anker 737 Power Bank 140W ($149.99)</option>
+          <option value="SKU-DYSON-V15-DETECT">Dyson V15 Detect Cordless Vacuum ($749.99)</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- WebRTC Live Viewfinder -->
+    <section class="viewfinder-wrapper" id="viewfinderContainer">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <canvas id="captureCanvas"></canvas>
+
+      <!-- Targeting HUD -->
+      <div class="reticle-hud">
+        <div class="hud-top-bar">
+          <div class="hud-pill">
+            <span class="hud-live-dot"></span>
+            <span id="hudFps">1080p AI FEED</span>
+          </div>
+          <div class="hud-pill" id="lightingPill" style="color: #facc15; border-color: rgba(250, 204, 21, 0.4);">
+            💡 Lighting: Optimal
+          </div>
+        </div>
+
+        <div class="targeting-box">
+          <div class="targeting-guide-text">Align Unboxed Chassis Inside Frame</div>
+        </div>
+
+        <div style="text-align: center;">
+          <span style="font-size: 10px; color: rgba(255, 255, 255, 0.7); background: rgba(0,0,0,0.6); padding: 3px 8px; border-radius: 4px;">
+            Dual Focus: Visual Identity + Serial Plate
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Camera Controls -->
+    <section class="camera-controls">
+      <button class="icon-btn" id="btnTorch" title="Toggle Flashlight">🔦</button>
+      <button class="shutter-btn" id="btnCapture" title="Capture and Triage Return">⚡</button>
+      <button class="icon-btn" id="btnFlipCamera" title="Switch Camera">🔄</button>
+    </section>
+
+    <!-- Quick Simulation Presets (For Testing / Demonstrations) -->
+    <section>
+      <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; text-transform: uppercase;">
+        ⚡ Instant Doorstep Test Presets
+      </div>
+      <div class="sim-strip">
+        <button class="sim-pill" id="presetClean">🟢 Genuine Sony XM5 (Pass)</button>
+        <button class="sim-pill" id="presetSwap">🔴 Lookalike Swap (Reject)</button>
+        <button class="sim-pill" id="presetSerialMismatch">🔴 Stolen / Mismatched Serial</button>
+        <button class="sim-pill" id="presetMissingBOM">🟡 Missing Braided Cable</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Inspection Result Modal Overlay -->
+  <div class="result-overlay" id="resultOverlay">
+    <div class="result-card">
+
+      <!-- Dynamic Header Banner (Pass vs Fail vs Partial) -->
+      <div class="result-banner pass" id="resultBanner">
+        <span class="verdict-tag" id="verdictTag">VERIFIED OEM RETURN</span>
+        <div class="verdict-title" id="verdictTitle">RELEASE REFUND OTP</div>
+      </div>
+
+      <!-- Result Details Body -->
+      <div class="result-body">
+
+        <!-- Metrics Grid -->
+        <div class="metric-grid">
+          <div class="metric-box">
+            <div class="metric-box-title">DINOv2 Visual Match</div>
+            <div class="metric-box-value" id="valDinov2">0.992 (OEM)</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-box-title">Serial Plate OCR</div>
+            <div class="metric-box-value" id="valSerial">EXACT_MATCH</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-box-title">BOM Kitting Audit</div>
+            <div class="metric-box-value" id="valKitting">All 4 Present</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-box-title">Station SLA Latency</div>
+            <div class="metric-box-value" id="valLatency" style="color: #38bdf8;">0.18 ms (Edge)</div>
+          </div>
+        </div>
+
+        <!-- Evidence Proof Thumbnail & Explanation -->
+        <div class="proof-preview">
+          <img src="/doorstep/icons/icon-192.png" id="proofThumb" class="proof-thumb" alt="Evidence Thumbnail">
+          <div class="proof-explanation" id="proofExplanation">
+            Visual identity aligns with registered catalog reference. Chassis laser serial matches outer box barcode.
+          </div>
+        </div>
+
+        <!-- Conditional OTP Callout (Shown only when PASS) -->
+        <div class="otp-callout" id="otpCallout">
+          <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">
+            Customer Refund Verification OTP
+          </span>
+          <div class="otp-number" id="otpDisplay">784-219</div>
+          <span style="font-size: 10px; color: #15803d;">
+            Hand this OTP to the customer to release refund funds.
+          </span>
+        </div>
+
+        <!-- Action Stack -->
+        <div class="action-stack">
+          <button class="btn-primary-pass" id="btnReleaseOtp">
+            <span>🔑 Confirm Pickup & Release OTP</span>
+          </button>
+          <button class="btn-primary-fail" id="btnRejectFraud" style="display: none;">
+            <span>🛑 Log Fraud Attempt & Retain Parcel</span>
+          </button>
+          <button class="btn-secondary" id="btnDownloadDossier">
+            <span>📄 Download Arbitration PDF Dossier</span>
+          </button>
+          <button class="btn-secondary" id="btnCloseModal">
+            <span>Scan Next Return</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast Notification Bar -->
+  <div class="toast-bar" id="toastBar">
+    <span id="toastIcon">ℹ️</span>
+    <span id="toastMsg">Ready</span>
+  </div>
+
+  <script src="/doorstep/app.js"></script>
+</body>
+</html>
+

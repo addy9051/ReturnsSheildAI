@@ -20,7 +20,8 @@ import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from core.arbitration_report import ArbitrationReportGenerator
@@ -99,6 +100,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount Mobile Doorstep QC PWA
+DOORSTEP_DIR = Path(__file__).resolve().parent / "doorstep"
+if DOORSTEP_DIR.exists():
+    app.mount("/doorstep", StaticFiles(directory=str(DOORSTEP_DIR), html=True), name="doorstep")
+
+
+@app.get("/mobile", tags=["System"], include_in_schema=False)
+async def mobile_redirect():
+    """Convenience redirect to Mobile Doorstep QC PWA."""
+    return RedirectResponse(url="/doorstep/")
 
 
 # ==============================================================================

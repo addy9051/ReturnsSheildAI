@@ -219,6 +219,34 @@ Implemented a dedicated, self-contained vector PDF compiler using **ReportLab** 
 ### The Lesson
 > *A return fraud detection engine only delivers enterprise ROI if its technical proof is formatted into court- and claims-admissible evidence. Standardize on native, lightweight vector PDF compilers over heavy headless browser stacks to ensure reliable, zero-dependency dispute packet exports.*
 
+---
+
+## ADR-010: Edge Mobile Client for Doorstep Reverse-Logistics QC & OTP Release Gate
+
+- **Date:** 2026-10-29
+- **Status:** Accepted & Implemented
+- **Module:** `app/doorstep/`, `app/api.py`, `tests/test_api.py`
+
+### Context
+In high-fraud return ecosystems (particularly India/APAC and quick-commerce reverse pickups), fraudulent swaps, cannibalized accessories, and counterfeit 1:1 clones often occur at the doorstep before an item ever reaches a 3PL depot. Couriers typically scan only the shipping label barcode and immediately release the customer refund OTP, leaving sellers defenseless against in-transit swaps and transit theft.
+
+### The Block
+Native mobile app distribution (Android APK / iOS IPA) introduces severe operational friction: disparate courier fleet devices, Play Store review delays, mandatory permissions management, and heavy binary footprints that low-end courier phones struggle to run over 3G/4G cellular networks. Furthermore, relying on remote cloud audio assets for driver feedback introduces latency and failures in poor network coverage.
+
+### The Fix
+Implemented a lightweight, zero-install **Progressive Web App (PWA)** mounted directly at `/doorstep/` and `/mobile`:
+1. **WebRTC In-Browser Viewfinder & HUD:** Delivers a 60 FPS camera targeting viewfinder with visual guide reticles (bounding box corners, center crosshair) and dynamic torch/flash toggle.
+2. **Web Audio API Hardware Synthesis:** Replaces remote MP3 sound assets with programmatic sound wave synthesis:
+   - *Authentic Pass:* Harmonic major triad chord (C5 523Hz, E5 659Hz, G5 784Hz sine waves) providing clear positive acoustic confirmation.
+   - *Fraud / Mismatch Alert:* Descending tritone sawtooth wave (F#4 370Hz to C4 261Hz) alerting the courier immediately to halt the pickup.
+3. **Refund OTP Release Security Gate:** The customer refund OTP is physically concealed behind an encrypted security card and is programmatically unlocked **only** when ReturnShield AI returns a `FULL_REFUND` or `PARTIAL_REFUND` disposition. If a `REJECT_FRAUD` or `INVESTIGATE_MANUAL` verdict is triggered, the OTP remains locked, the red warning banner displays specific mismatch reasons (e.g., serial mismatch, missing charger, visual clone), and the courier is instructed to refuse acceptance.
+4. **Service Worker & Manifest:** Offline-first caching via `sw.js` and full-screen `standalone` orientation via `manifest.json`.
+5. **Instant Fallback Presets:** Built-in hardware test simulator enabling QA and driver training across 4 realistic return scenarios (Genuine Sony XM5, Lookalike Swap, Stolen Serial Mismatch, Missing Braided Cable) directly within any mobile or desktop browser without requiring a physical camera rig.
+
+### The Lesson
+> *Shift fraud prevention as far left as possible: intercepting a swap at the customer doorstep before the refund OTP is released saves \$100+ in transit, 3PL triage, and legal arbitration costs. Zero-install PWAs leveraging WebRTC and Web Audio deliver native-grade hardware capabilities without app store distribution overhead.*
+
+
 
 
 

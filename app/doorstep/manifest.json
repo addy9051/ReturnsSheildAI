@@ -1,0 +1,25 @@
+{
+  "name": "ReturnShield AI Doorstep QC",
+  "short_name": "Doorstep QC",
+  "description": "Ultra-Fast Computer Vision Return Verification & OTP Release for Delivery Couriers",
+  "start_url": "/doorstep/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1120",
+  "theme_color": "#0F172A",
+  "icons": [
+    {
+      "src": "/doorstep/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/doorstep/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

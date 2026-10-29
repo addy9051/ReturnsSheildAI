@@ -148,3 +148,30 @@ def test_api_inspect_return_and_certificate_lifecycle(api_client: TestClient):
     assert res_pdf.headers["content-type"] == "application/pdf"
     assert len(res_pdf.content) > 5000
     assert res_pdf.content[:4] == b"%PDF"
+
+
+def test_mobile_doorstep_pwa_endpoints(api_client: TestClient):
+    """Validates Mobile Doorstep PWA routes, manifest, and service worker."""
+    # 1. PWA root page
+    res_ui = api_client.get("/doorstep/")
+    assert res_ui.status_code == 200
+    assert "text/html" in res_ui.headers["content-type"]
+    assert "ReturnShield QC" in res_ui.text
+    assert "cameraVideo" in res_ui.text
+
+    # 2. PWA Web App Manifest
+    res_manifest = api_client.get("/doorstep/manifest.json")
+    assert res_manifest.status_code == 200
+    manifest = res_manifest.json()
+    assert manifest["name"] == "ReturnShield AI Doorstep QC"
+    assert manifest["display"] == "standalone"
+
+    # 3. PWA Service Worker
+    res_sw = api_client.get("/doorstep/sw.js")
+    assert res_sw.status_code == 200
+    assert "CACHE_NAME" in res_sw.text
+
+    # 4. Mobile shortcut redirect
+    res_redir = api_client.get("/mobile", follow_redirects=False)
+    assert res_redir.status_code in [307, 302]
+    assert res_redir.headers["location"] == "/doorstep/"

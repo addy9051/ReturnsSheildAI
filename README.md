@@ -7,7 +7,7 @@
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 68 Passed](https://img.shields.io/badge/Tests-68%20Passed%20(61%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 69 Passed](https://img.shields.io/badge/Tests-69%20Passed%20(62%20Py%20%2B%207%20Rust)-success.svg)](tests/)
 
 ---
 
@@ -220,6 +220,12 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Tailored claims evidence templates for Amazon SAFE-T, Flipkart SPF, and Stripe Chargebacks.
   - Native vector QR code, SHA-256 evidence hashing, side-by-side DINOv2 heatmaps, and serial OCR forensics.
   - REST endpoint (`GET /audit/certificates/{certificate_id}/pdf`) and 1-click Streamlit dashboard download.
+- [x] **Phase 7: Mobile Doorstep QC Client (PWA & WebRTC)**
+  - Zero-install field progressive web app mounted at `/doorstep/` (and `/mobile` shortcut).
+  - WebRTC live 60 FPS camera targeting viewfinder with reticle HUD and torch controls.
+  - Real-time client-side Web Audio API acoustic feedback (harmonic major chord vs fraud alert tritone).
+  - Customer refund OTP security gate preventing release on swaps, serial mismatches, or missing BOM parts.
+  - 1-click Doorstep dispute packet PDF download and instant scenario simulator presets.
 
 ---
 
