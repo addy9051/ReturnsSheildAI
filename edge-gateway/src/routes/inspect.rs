@@ -26,14 +26,12 @@ pub async fn inspect_return_handler(
     drop(cat);
 
     // 2. Dual-Serial Number Verification
-    let serial_result = if req.box_barcode_raw.is_some() || req.serial_plate_crop_path.is_some() {
-        let chassis_simulated = req
-            .expected_customer_serial
-            .as_deref()
-            .or(req.box_barcode_raw.as_deref());
+    // Compares box barcode against trusted order-side expected customer serial.
+    // Box barcode is never compared to itself as simulated chassis.
+    let serial_result = if req.box_barcode_raw.is_some() || req.expected_customer_serial.is_some() {
         Some(SerialVerifier::verify(
             req.box_barcode_raw.as_deref(),
-            chassis_simulated,
+            req.expected_customer_serial.as_deref(),
             profile.expected_serial_regex.as_deref(),
         ))
     } else {
@@ -42,21 +40,26 @@ pub async fn inspect_return_handler(
 
     // 3. Packaging Tray BOM Kitting Audit
     let kitting_auditor = KittingAuditor::default();
-    let kitting_result = Some(kitting_auditor.audit(
-        &profile.bom,
-        None,
-        req.tray_crop_path.as_deref(),
-    ));
+    let kitting_result = if req.tray_crop_path.is_some() {
+        Some(kitting_auditor.audit(
+            &profile.bom,
+            None,
+            req.tray_crop_path.as_deref(),
+        ))
+    } else {
+        None
+    };
 
     // 4. Visual Identity Confirmation (Baseline Edge Engine)
+    // Edge Gateway marks unverified unless evaluated by a validated vision model worker.
     let swap_result = if req.chassis_crop_path.is_some() {
         Some(SwapDetectionResult {
-            identity_status: IdentityMatchStatus::VerifiedOem,
-            cosine_similarity: 0.985,
+            identity_status: IdentityMatchStatus::Unverified,
+            cosine_similarity: 0.0,
             threshold: profile.similarity_threshold,
             is_swap_detected: false,
-            explanation: "Edge Gateway verified OEM visual identity profile.".to_string(),
-            spatial_diff_score: Some(0.0),
+            explanation: "Edge Gateway received chassis crop; unverified at edge until evaluated by primary vision worker.".to_string(),
+            spatial_diff_score: None,
             heatmap_path: None,
         })
     } else {

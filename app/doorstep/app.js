@@ -212,6 +212,8 @@
     try {
       let resData = null;
 
+      const authHeaders = { "X-API-Key": "rs_inspector_key_sec_2026" };
+
       if (imageBlob) {
         // Send multipart form to /returns/inspect/upload
         const formData = new FormData();
@@ -224,6 +226,7 @@
 
         const resp = await fetch("/returns/inspect/upload", {
           method: "POST",
+          headers: authHeaders,
           body: formData,
         });
         if (resp.ok) {
@@ -237,13 +240,12 @@
           rma_number: rma,
           sku_id: sku,
           box_barcode_raw: barcode,
-          expected_customer_serial: barcode,
           operator_id: "RIDER-MUM-402",
           bench_id: "MOBILE-DOORSTEP-QC",
         };
         const resp = await fetch("/returns/inspect", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { ...authHeaders, "Content-Type": "application/json" },
           body: JSON.stringify(jsonPayload),
         });
         if (resp.ok) {
@@ -254,53 +256,71 @@
       const elapsed = (performance.now() - tStart).toFixed(1);
       if (resData) {
         resData.processing_time_ms = elapsed;
-        renderInspectionResult(resData);
+        await renderInspectionResult(resData, false);
       } else {
-        // Offline / simulated fallback
-        renderSimulatedResult(rma, sku, barcode, "clean");
+        // FAIL-CLOSED: Block OTP and render explicit unavailable state
+        renderInspectionUnavailable(rma, "Server inspection request failed or service unreachable.");
       }
     } catch (err) {
       console.error("Doorstep inspection failed:", err);
-      renderSimulatedResult(rma, sku, barcode, "clean");
+      // FAIL-CLOSED: Block OTP and render explicit unavailable state
+      renderInspectionUnavailable(rma, `Connection error: ${err.message || "Network offline"}`);
     }
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Result Rendering & Binary Verdict Presentation
+  // 4. Result Rendering & Server-Authorized Verdict Presentation
   // ---------------------------------------------------------------------------
-  function renderInspectionResult(result) {
+  async function renderInspectionResult(result, isSimulation = false) {
     currentInspectionResult = result;
 
     const isFraud = result.is_fraud || (result.disposition && result.disposition.action === "REJECT_FRAUD_HOLD");
     const isPartial = result.disposition && result.disposition.action === "PARTIAL_REFUND";
+    const isManualReview = result.disposition && result.disposition.action === "MANUAL_SECONDARY_REVIEW";
 
     // Sound and Banner
     if (isFraud) {
       playSound("fail");
       resultBanner.className = "result-banner fail";
-      verdictTag.textContent = "🛑 FRAUD ALERT DETECTED";
+      verdictTag.textContent = isSimulation ? "🧪 [DEMO PRESET] FRAUD ALERT" : "🛑 FRAUD ALERT DETECTED";
       verdictTitle.textContent = "REJECT RETURN — DO NOT RELEASE OTP";
+      btnReleaseOtp.style.display = "none";
+      btnRejectFraud.style.display = "flex";
+      otpCallout.style.display = "none";
+    } else if (isManualReview) {
+      playSound("fail");
+      resultBanner.className = "result-banner partial";
+      verdictTag.textContent = isSimulation ? "🧪 [DEMO PRESET] MANUAL REVIEW" : "⚠️ SECONDARY MANUAL REVIEW REQUIRED";
+      verdictTitle.textContent = "HOLD PARCEL — DO NOT RELEASE OTP";
       btnReleaseOtp.style.display = "none";
       btnRejectFraud.style.display = "flex";
       otpCallout.style.display = "none";
     } else if (isPartial) {
       playSound("pass");
       resultBanner.className = "result-banner partial";
-      verdictTag.textContent = "⚠️ PARTIAL REFUND (MISSING ACCESSORIES)";
+      verdictTag.textContent = isSimulation ? "🧪 [DEMO PRESET] PARTIAL REFUND" : "⚠️ PARTIAL REFUND (MISSING ACCESSORIES)";
       verdictTitle.textContent = "COLLECT PARCEL & RELEASE PARTIAL OTP";
       btnReleaseOtp.style.display = "flex";
       btnRejectFraud.style.display = "none";
       otpCallout.style.display = "flex";
-      generateRandomOtp();
+      if (!isSimulation) {
+        await requestServerPickupAuthorization(result.rma_number, result.sku_id);
+      } else {
+        otpDisplay.textContent = "DEMO-PARTIAL";
+      }
     } else {
       playSound("pass");
       resultBanner.className = "result-banner pass";
-      verdictTag.textContent = "✅ VERIFIED AUTHENTIC OEM";
+      verdictTag.textContent = isSimulation ? "🧪 [DEMO PRESET] VERIFIED OEM" : "✅ VERIFIED AUTHENTIC OEM";
       verdictTitle.textContent = "COLLECT PARCEL & RELEASE REFUND OTP";
       btnReleaseOtp.style.display = "flex";
       btnRejectFraud.style.display = "none";
       otpCallout.style.display = "flex";
-      generateRandomOtp();
+      if (!isSimulation) {
+        await requestServerPickupAuthorization(result.rma_number, result.sku_id);
+      } else {
+        otpDisplay.textContent = "DEMO-784219";
+      }
     }
 
     // Metrics
@@ -309,16 +329,16 @@
       valDinov2.textContent = `${cos} (${result.swap_result.identity_status})`;
       valDinov2.style.color = result.swap_result.is_swap_detected ? "#ef4444" : "#22c55e";
     } else {
-      valDinov2.textContent = "0.985 (OEM Verified)";
-      valDinov2.style.color = "#22c55e";
+      valDinov2.textContent = isSimulation ? "0.985 (Simulated)" : "UNAVAILABLE";
+      valDinov2.style.color = isSimulation ? "#22c55e" : "#ef4444";
     }
 
     if (result.serial_result) {
       valSerial.textContent = result.serial_result.match_status;
       valSerial.style.color = result.serial_result.is_match ? "#22c55e" : "#ef4444";
     } else {
-      valSerial.textContent = "EXACT_MATCH";
-      valSerial.style.color = "#22c55e";
+      valSerial.textContent = isSimulation ? "EXACT_MATCH" : "UNAVAILABLE";
+      valSerial.style.color = isSimulation ? "#22c55e" : "#ef4444";
     }
 
     if (result.kitting_result) {
@@ -326,8 +346,8 @@
       valKitting.textContent = missing === 0 ? "Complete Kit" : `${missing} Item(s) Missing`;
       valKitting.style.color = missing === 0 ? "#22c55e" : "#f59e0b";
     } else {
-      valKitting.textContent = "Complete Kit";
-      valKitting.style.color = "#22c55e";
+      valKitting.textContent = isSimulation ? "Complete Kit" : "UNAVAILABLE";
+      valKitting.style.color = isSimulation ? "#22c55e" : "#ef4444";
     }
 
     valLatency.textContent = `${result.processing_time_ms || "0.2"} ms`;
@@ -342,11 +362,60 @@
     resultOverlay.style.display = "flex";
   }
 
-  function generateRandomOtp() {
-    const num = Math.floor(100000 + Math.random() * 900000);
-    const formatted = `${String(num).slice(0, 3)}-${String(num).slice(3)}`;
-    otpDisplay.textContent = formatted;
+  async function requestServerPickupAuthorization(rma, sku) {
+    otpDisplay.textContent = "AUTHORIZING...";
+    btnReleaseOtp.disabled = true;
+    try {
+      const resp = await fetch("/returns/authorize-pickup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": "rs_inspector_key_sec_2026",
+        },
+        body: JSON.stringify({ rma_number: rma, sku_id: sku }),
+      });
+      if (resp.ok) {
+        const authData = await resp.json();
+        if (authData.authorized && authData.otp) {
+          otpDisplay.textContent = authData.otp;
+          btnReleaseOtp.disabled = false;
+          return;
+        } else {
+          otpDisplay.textContent = "BLOCKED";
+          otpCallout.style.display = "none";
+          verdictTitle.textContent = "PICKUP BLOCKED: " + (authData.reason || "MANUAL REVIEW REQUIRED");
+          btnReleaseOtp.style.display = "none";
+          btnRejectFraud.style.display = "flex";
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Server pickup authorization failed:", e);
+    }
+    otpDisplay.textContent = "AUTH_ERROR";
+    btnReleaseOtp.disabled = true;
   }
+
+  function renderInspectionUnavailable(rma, reason) {
+    playSound("fail");
+    resultBanner.className = "result-banner fail";
+    verdictTag.textContent = "⚠️ INSPECTION UNAVAILABLE";
+    verdictTitle.textContent = "DO NOT RELEASE OTP — TRANSFER TO HUB";
+    btnReleaseOtp.style.display = "none";
+    btnRejectFraud.style.display = "flex";
+    otpCallout.style.display = "none";
+    valDinov2.textContent = "UNAVAILABLE";
+    valDinov2.style.color = "#ef4444";
+    valSerial.textContent = "UNAVAILABLE";
+    valSerial.style.color = "#ef4444";
+    valKitting.textContent = "UNAVAILABLE";
+    valKitting.style.color = "#ef4444";
+    valLatency.textContent = "0.0 ms";
+    proofExplanation.textContent =
+      `Automated inspection could not be completed (${reason}). Courier must not release refund OTP. Parcel must be returned to 3PL intake dock.`;
+    resultOverlay.style.display = "flex";
+  }
+
 
   // ---------------------------------------------------------------------------
   // 5. Presets Simulation (for instant testing without packages)

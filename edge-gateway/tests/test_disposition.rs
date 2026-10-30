@@ -140,12 +140,33 @@ fn test_partial_refund_missing_items_and_wear() {
         total_accessory_deduction: 40.0,
     };
 
+    let swap_res = SwapDetectionResult {
+        identity_status: IdentityMatchStatus::VerifiedOem,
+        cosine_similarity: 0.985,
+        threshold: 0.85,
+        is_swap_detected: false,
+        explanation: "Verified OEM".to_string(),
+        spatial_diff_score: None,
+        heatmap_path: None,
+    };
+
+    let serial_res = SerialVerificationResult {
+        box_barcode: Some("SN-12345".to_string()),
+        chassis_serial_raw: Some("SN-12345".to_string()),
+        chassis_serial_normalized: Some("SN12345".to_string()),
+        match_status: SerialMatchStatus::ExactMatch,
+        is_match: true,
+        similarity_ratio: 1.0,
+        ocr_confidence: 0.99,
+        notes: "Exact match".to_string(),
+    };
+
     // Wear score 0.20 -> Grade B -> 10% penalty = $40.00
     let (disp, cert) = DispositionEngine::calculate_disposition(
         &profile,
         "RMA-RUST-PARTIAL",
-        None,
-        None,
+        Some(&swap_res),
+        Some(&serial_res),
         Some(&kitting_res),
         0.20,
         None,
@@ -157,4 +178,24 @@ fn test_partial_refund_missing_items_and_wear() {
     assert_eq!(disp.total_deductions, 120.0);
     assert_eq!(disp.net_refund_amount, 279.99);
     assert!(cert.fraud_flags.contains(&FraudFlag::MissingAccessory));
+}
+
+#[test]
+fn test_incomplete_evidence_routes_to_manual_review() {
+    let profile = sample_profile();
+
+    // Critical visual and serial evidence absent
+    let (disp, cert) = DispositionEngine::calculate_disposition(
+        &profile,
+        "RMA-RUST-EMPTY",
+        None,
+        None,
+        None,
+        0.0,
+        None,
+    );
+
+    assert_eq!(disp.action, DispositionAction::ManualSecondaryReview);
+    assert!(cert.fraud_flags.contains(&FraudFlag::IncompleteEvidence));
+    assert_eq!(disp.net_refund_amount, 0.0);
 }

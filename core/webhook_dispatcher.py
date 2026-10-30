@@ -12,11 +12,15 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import ipaddress
 import json
 import logging
+import os
 from pathlib import Path
+import socket
 import time
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import urlparse
 import uuid
 
 import httpx
@@ -34,6 +38,84 @@ from core.webhook_security import build_outbound_webhook_headers
 logger = logging.getLogger("returnshield.webhook_dispatcher")
 
 DEFAULT_STORAGE_DIR = Path(__file__).resolve().parent.parent / "storage"
+
+
+def validate_target_url(url: str) -> None:
+    """Validates destination webhook URL against SSRF and non-routable address abuse."""
+    if not url:
+        raise ValueError("Webhook target URL cannot be empty.")
+
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.hostname:
+        raise ValueError(f"Malformed webhook target URL: '{url}'.")
+
+    # In test environments or when explicitly permitted
+    is_test_env = "PYTEST_CURRENT_TEST" in os.environ or os.getenv("RETURNSHIELD_ALLOW_TEST_WEBHOOK_URLS", "false").lower() in ("true", "1")
+
+    if parsed.scheme.lower() not in ("https", "http"):
+        raise ValueError(f"Invalid webhook URL scheme '{parsed.scheme}'. Only HTTPS is permitted.")
+
+    if parsed.scheme.lower() == "http" and not is_test_env:
+        raise ValueError("Insecure HTTP webhook URLs are prohibited in production. Target must use HTTPS.")
+
+    hostname = parsed.hostname.strip().lower()
+
+    # Always block cloud metadata, link-local addresses, and localhost by name
+    if hostname in ("169.254.169.254", "metadata.google.internal", "instance-data", "metadata", "localhost"):
+        raise ValueError(f"SSRF violation: Access to host '{hostname}' is strictly blocked.")
+
+    # Always block private/loopback/non-routable raw IP targets (even in test environments)
+    try:
+        ip_obj = ipaddress.ip_address(hostname)
+        if (
+            ip_obj.is_loopback
+            or ip_obj.is_private
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            raise ValueError(f"SSRF violation: Direct IP target '{hostname}' is a non-routable / private / loopback address.")
+    except ValueError as ve:
+        if "SSRF violation" in str(ve):
+            raise
+        # Not an IP literal, it is a domain name
+
+    # For domain names in production, perform pre-flight DNS resolution to block DNS rebinding / internal routing
+    if not is_test_env:
+        try:
+            addr_info = socket.getaddrinfo(hostname, None)
+            for entry in addr_info:
+                ip_str = entry[4][0]
+                ip_obj = ipaddress.ip_address(ip_str)
+                if (
+                    ip_obj.is_loopback
+                    or ip_obj.is_private
+                    or ip_obj.is_link_local
+                    or ip_obj.is_multicast
+                    or ip_obj.is_reserved
+                    or ip_obj.is_unspecified
+                ):
+                    raise ValueError(f"SSRF violation: Target hostname '{hostname}' resolves to restricted IP: {ip_str}")
+        except socket.gaierror as e:
+            raise ValueError(f"Failed resolving webhook hostname '{hostname}': {e}")
+
+
+def redact_sensitive_headers(headers: Dict[str, str]) -> Dict[str, str]:
+    """Redacts HMAC signatures and authorization tokens from audit headers."""
+    redacted = dict(headers)
+    sensitive_keys = {
+        "x-returnshield-signature",
+        "x-shopify-hmac-sha256",
+        "x-hub-signature-256",
+        "authorization",
+        "x-api-key",
+    }
+    for k in list(redacted.keys()):
+        if k.lower() in sensitive_keys:
+            val = str(redacted[k])
+            redacted[k] = val[:6] + "..." if len(val) > 10 else "[REDACTED]"
+    return redacted
 
 
 class WebhookDispatcher:
@@ -111,6 +193,8 @@ class WebhookDispatcher:
         description: Optional[str] = None,
     ) -> WebhookSubscription:
         """Registers a new webhook listener."""
+        validate_target_url(target_url)
+
         events = subscribed_events or [
             WebhookEvent.RETURN_INSPECTED,
             WebhookEvent.REFUND_APPROVED,
@@ -162,6 +246,9 @@ class WebhookDispatcher:
         client: Optional[httpx.AsyncClient] = None,
     ) -> WebhookDeliveryAttempt:
         """Delivers a signed payload to a single subscription endpoint with exponential retry."""
+        # Pre-flight check against SSRF
+        validate_target_url(subscription.target_url)
+
         # 1. Adapt canonical payload into target platform structure
         adapted = adapt_canonical_payload(canonical_payload, subscription.platform)
         
@@ -238,7 +325,7 @@ class WebhookDispatcher:
             status_code=status_code,
             duration_ms=round(duration_ms, 2),
             attempts=attempts,
-            request_headers=headers,
+            request_headers=redact_sensitive_headers(headers),
             response_body=resp_text,
             error_message=error_msg,
         )

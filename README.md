@@ -1,54 +1,54 @@
 # ReturnShield AI 🛡️
 
 > **Commercial 3PL Open-Box Return Fraud & Condition Grading Station**  
-> *Turning a 2-minute manual warehouse return inspection into a sub-3-second overhead camera snapshot.*
+> *Turning a 2-minute manual warehouse return inspection into a sub-3-second automated camera triage station.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python: 3.11+](https://img.shields.io/badge/Python-3.11+-brightgreen.svg)](https://python.org)
 [![PyTorch: 2.5](https://img.shields.io/badge/PyTorch-2.5-EE4C2C.svg)](https://pytorch.org)
 [![Rust: 1.80+](https://img.shields.io/badge/Rust-1.80+-orange.svg)](https://www.rust-lang.org)
-[![Tests: 96 Passed](https://img.shields.io/badge/Tests-96%20Passed%20(89%20Py%20%2B%207%20Rust)-success.svg)](tests/)
+[![Tests: 104 Passed](https://img.shields.io/badge/Tests-104%20Passed%20(95%20Py%20%2B%209%20Rust)-success.svg)](tests/)
 
 ---
 
-## 1. Executive Summary & Market Problem
+## 1. Executive Summary & Operational Scope
 
 E-commerce returns for high-value rigid goods ($100–$2,000 electronics, power tools, audio gear, and appliances) represent a massive operational and financial leak:
 - **The Manual Bottleneck:** Warehouse operators spend **90 to 150 seconds per unit** looking up orders, squinting at tiny laser-engraved serial plates, cross-referencing accessories, and taking phone photos for disputes.
-- **The ReturnShield Solution:** An ultra-fast, form-factor-agnostic computer vision engine that evaluates returns in **under 3.0 seconds**. It categorizes visual identity, cross-verifies serial barcodes, audits accessories, and produces a cryptographically sealed dispute certificate.
-  - **Warehouse Mode:** Deployed on overhead industrial camera bench rigs at 3PL fulfillment docks.
-  - **Mobile Doorstep Mode:** Embedded directly into delivery executives' smartphones. A delivery driver simply points their phone camera at the open box at the customer's doorstep for a 3-second instant scan—verifying the physical chassis and engraved serial against the order manifest *before* accepting the return or releasing the refund OTP.
+- **The ReturnShield Solution:** An automated computer vision triage pipeline targeting **under 3.0 seconds** processing latency. It categorizes visual identity, cross-verifies serial barcodes against order records, audits packaging accessory completeness, and produces an HMAC-signed audit evidence manifest with raw artifact byte hashes.
+  - **Warehouse Mode:** Deployed on overhead industrial camera bench rigs at 3PL fulfillment docks with fail-closed triage routing.
+  - **Mobile Doorstep Mode:** Field progressive web client mounted at `/doorstep/`. Delivery couriers capture box and serial photos at customer handover, requiring server-side cryptographic pickup authorization (`/returns/authorize-pickup`) before OTP release or parcel custody acceptance.
 
 ```mermaid
 flowchart LR
     A["Overhead Camera Snapshot"] --> B["DINOv2 ViT Identity Matcher"]
     A --> C["Dual-Serial OCR Verifier"]
     A --> D["BOM Kitting Tray Auditor"]
-    B & C & D --> E["Automated Disposition Engine"]
-    E --> F["Itemized Refund Deduction"]
-    E --> G["SHA-256 Dispute Audit Certificate"]
+    B & C & D --> E["Automated Disposition Engine (Fail-Closed)"]
+    E --> F["Itemized Deductions (Order-Paid Basis)"]
+    E --> G["HMAC-Signed Dispute Audit Manifest"]
 ```
 
 ---
 
-## 2. Dual Strategic Market Takeaways
+## 2. Dual Strategic Market Applications & Operational Evidence
 
-ReturnShield AI addresses two fundamentally different macroeconomic logistics realities:
+ReturnShield AI is designed for two distinct reverse logistics operating environments:
 
-### Strategy 1: North America & Europe — Automated 3PL Gatekeeper ($101B Problem)
-- **The Reality:** In Western markets, **doorstep inspection is economically impossible**. Courier drivers (UPS, FedEx, USPS) earn \$22–\$38/hour and operate on a 90-second-per-stop cadence. 85%+ of returns are left uninspected on porches or dropped off in 5 seconds at retail aggregators (Kohl's, UPS Stores).
-- **The Pain Point:** Pallets of 10,000 mixed open boxes arrive at centralized 3PL facilities (ShipBob, GXO, Quiet 3PL). Retailers suffer massive losses from bait-and-switch swaps, cosmetic degradation, and cannibalized chargers.
-- **ReturnShield Role:** Serves as the **automated triage gatekeeper** at the warehouse intake dock, reducing labor costs by 90% and enforcing condition deductions before refunds are processed.
+### Strategy 1: North America & Europe — Automated 3PL Gatekeeper
+- **The Operational Context:** In Western markets, courier doorstep inspection is generally non-viable due to tight delivery cadences (under 90 seconds per stop). Most returns arrive aggregated on mixed pallets at centralized 3PL intake facilities (e.g. GXO, ShipBob, Quiet 3PL).
+- **The Operational Challenge:** Intake docks suffer from unverified bait-and-switch swaps, cosmetic degradation, and cannibalized accessories, often processed under default full-refund rules when uninspected.
+- **ReturnShield Role:** Serves as an **automated intake gatekeeper** at warehouse intake docks, applying fail-closed triage (routing incomplete or ambiguous evidence to secondary manual inspection) and calculating itemized condition deductions anchored to actual customer-paid invoice amounts.
 
-### Strategy 2: India & Emerging E-Commerce — Dispute & Claim Arbiter (The SPF War)
-- **The Reality:** In India, marketplaces (Flipkart, Amazon India) mandate "Doorstep Reverse QC." However, industry investigations and police busts reveal that **doorstep QC frequently fails**:
-  - Delivery riders are paid ₹15–₹25 per pickup and spend under 45 seconds at the door. They scan only the paper shipping sticker.
-  - **The Transit Swap Racket:** Delivery personnel or transit handlers swap genuine high-value items (smartphones, audio gear) with old broken units or soap, resealing packages with branded tape before arrival at the seller's hub.
-  - **First-Copy Clones:** Riders cannot distinguish between authentic ₹30,000 electronics and ₹1,500 Shenzhen 1:1 clones in apartment doorways.
-- **The Pain Point:** Sellers lose thousands of crores annually. Over 40% of **Seller Protection Fund (SPF)** and **Amazon SAFE-T** claims are rejected due to "insufficient unboxing video proof."
-- **ReturnShield Role:** Empowers both ends of the reverse logistics chain:
-  1. **At Doorstep (Mobile App):** Equips the delivery rider with a point-and-scan mobile verification tool that detects swapped knockoffs, missing accessories, or tampered serials in real-time, blocking fraudulent pickups before the OTP is exchanged.
-  2. **At Inbound Hub (Station Bench):** Replaces expensive, manual CCTV filming desks at fulfillment hubs. Provides **instant, indisputable cryptographic evidence** (timestamped serial OCR, DINOv2 heatmaps, SHA-256 evidence bundles) to guarantee 85%+ win rates on seller dispute claims.
+### Strategy 2: Emerging E-Commerce & Doorstep Reverse Logistics
+- **The Operational Context:** In markets where marketplaces mandate doorstep reverse QC, delivery personnel operate under rapid turnaround constraints, often scanning only external shipping barcodes.
+- **The Transit Swap Risk:** High-value goods are vulnerable to transit substitution or counterfeit clones before reaching central merchant hubs, leading to rejected marketplace claims when unboxing documentation is disputed.
+- **ReturnShield Role:**
+  1. **At Doorstep (Mobile PWA):** Requires independent visual capture of the physical unit and engraved chassis serial, comparing against trusted order-side data before contacting the backend for server-authorized OTP release.
+  2. **At Inbound Hub (Station Bench):** Replaces disputed manual bench photos with **standardized, tamper-evident audit dossiers** (timestamped serial OCR, DINOv2 spatial heatmaps, raw artifact SHA-256 byte manifests, and HMAC service signatures) to substantiate seller dispute claims (e.g. Amazon SAFE-T, Flipkart SPF) under platform arbitration standards.
+
+> [!NOTE]
+> Operational win rates, fraud reduction metrics, and latency performance depend on facility lighting calibration, camera optics, SKU reference catalog fidelity, and network connectivity. The system enforces fail-closed routing: any missing, failed, or unverified inspection check immediately defaults to `MANUAL_SECONDARY_REVIEW` and withholds automated refund disbursement.
 
 ---
 
@@ -213,22 +213,21 @@ Live concurrent stress tests executed via `scripts/benchmark_rust_vs_python.py` 
   - Cryptographic dispute certificate storage & verification (`/audit/verify`).
 - [x] **Phase 5: High-Throughput Rust Edge Microservice (`edge-gateway/`)**
   - Stand-alone Tokio/Axum edge gateway binary (`returnshield-edge.exe`).
-  - Concurrent in-memory catalog cache (`Arc<RwLock<SkuCatalog>>`).
-  - Native SIMD-friendly weighted Levenshtein dual-serial OCR engine.
-  - Sobel edge gradient & Shannon entropy packaging tray kitting auditor.
-  - Deterministic SHA-256 dispute certificate sealing.
+  - Durable on-disk catalog store and concurrent cache (`Arc<RwLock<SkuCatalog>>`).
+  - Regex-validated serial OCR and order-side expected serial comparison.
+  - Fail-closed triage routing ensuring unverified vision or missing checks trigger manual review.
   - Live concurrency benchmark suite (`scripts/benchmark_rust_vs_python.py`).
 - [x] **Phase 6: Automated Arbitration Dispute Packet Generator (PDF)**
   - Publication-grade 2-page PDF compiler with ReportLab (`core/arbitration_report.py`).
   - Tailored claims evidence templates for Amazon SAFE-T, Flipkart SPF, and Stripe Chargebacks.
-  - Native vector QR code, SHA-256 evidence hashing, side-by-side DINOv2 heatmaps, and serial OCR forensics.
+  - Native vector QR code, raw artifact SHA-256 byte hashing, service HMAC signing, and serial forensics.
   - REST endpoint (`GET /audit/certificates/{certificate_id}/pdf`) and 1-click Streamlit dashboard download.
 - [x] **Phase 7: Mobile Doorstep QC Client (PWA & WebRTC)**
   - Zero-install field progressive web app mounted at `/doorstep/` (and `/mobile` shortcut).
   - WebRTC live 60 FPS camera targeting viewfinder with reticle HUD and torch controls.
   - Real-time client-side Web Audio API acoustic feedback (harmonic major chord vs fraud alert tritone).
-  - Customer refund OTP security gate preventing release on swaps, serial mismatches, or missing BOM parts.
-  - 1-click Doorstep dispute packet PDF download and instant scenario simulator presets.
+  - Server-authorized OTP pickup gate (`POST /returns/authorize-pickup`) halting couriers on fraud or inspection failure.
+  - Clear separation of operational mode from non-operational demo simulator presets.
 - [x] **Phase 8: Edge-AI Model Quantization (INT8 Edge vs FP8 TensorRT)**
   - Dual CLS + patch token ONNX export toolchain (`core/quantization.py`).
   - Tier 1 INT8 Dynamic Quantization for edge/mobile ($3.64\times$ compression, $84\text{ MB} \to 23\text{ MB}$, $>0.99$ cosine parity).

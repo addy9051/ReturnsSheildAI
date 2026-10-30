@@ -51,8 +51,22 @@ impl SkuCatalog {
         self.profiles.values().cloned().collect()
     }
 
-    pub fn insert(&mut self, profile: SkuProfile) {
+    pub fn insert(&mut self, profile: SkuProfile) -> Result<(), String> {
         self.profiles.insert(profile.sku_id.clone(), profile);
+        self.persist_to_disk()
+    }
+
+    /// Persists current catalog state durably to disk so updates survive service restarts.
+    pub fn persist_to_disk(&self) -> Result<(), String> {
+        if let Some(parent) = self.db_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let file = File::create(&self.db_path)
+            .map_err(|e| format!("Failed to create catalog file {:?}: {}", self.db_path, e))?;
+        serde_json::to_writer_pretty(file, &self.profiles)
+            .map_err(|e| format!("Failed to serialize catalog to {:?}: {}", self.db_path, e))?;
+        info!("Persisted {} catalog profiles to disk at {:?}", self.profiles.len(), self.db_path);
+        Ok(())
     }
 
     /// Computes cosine similarity between two L2-normalized visual embedding vectors.

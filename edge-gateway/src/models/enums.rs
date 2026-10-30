@@ -13,6 +13,7 @@ pub enum FraudFlag {
     PhysicalDamage,
     TamperedSerialLabel,
     Counterfeit,
+    IncompleteEvidence,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -49,6 +50,7 @@ pub enum IdentityMatchStatus {
     VerifiedOem,
     SuspectedSwap,
     ConfirmedSwap,
+    Unverified,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

@@ -418,3 +418,92 @@ Benchmarks executed on local hardware using `scripts/benchmark_rust_vs_python.py
 - `POST /returns/inspect` — Instantaneous edge triage verification: validates serial numbers against optical confusion rules, checks accessory BOM compliance, executes financial deduction policy, and generates a tamper-proof SHA-256 audit certificate.
 - `POST /audit/verify` — Validates the cryptographic integrity of any previously issued dispute certificate against tampered payload inputs.
 
+---
+
+## 9. Security, Authentication, Multi-Tenant Governance & Operational Integrity
+
+```mermaid
+flowchart TD
+    Client["Client / Station / Courier"] --> AuthLayer["Authentication & Tenant Gateway (X-API-Key / X-Tenant-ID)"]
+    AuthLayer --> RBAC{"Role Check"}
+    
+    RBAC -- "Admin Role" --> AdminOps["Catalog & Webhook Administration"]
+    RBAC -- "Inspector Role" --> InspectionOps["Return Triage & Upload Ingestion"]
+    RBAC -- "Auditor Role" --> ReadOps["Certificate & Dispute Verification"]
+    
+    subgraph EvidenceGate["Critical Evidence & Fail-Closed Gate"]
+        InspectionOps --> CheckInputs{"Critical Evidence Present?"}
+        CheckInputs -- "Missing / Failed Detector" --> RouteManual["Route: MANUAL_SECONDARY_REVIEW (Block OTP / No Refund)"]
+        CheckInputs -- "All Critical Stages Valid" --> EngineCompute["Compute Financial Disposition"]
+    end
+    
+    subgraph Sealing["Cryptographic Manifest & Signing"]
+        EngineCompute --> HashArtifacts["Hash Raw Evidence Bytes (SHA-256)"]
+        HashArtifacts --> SignManifest["Sign Manifest with Protected Service Secret (HMAC-SHA256)"]
+        SignManifest --> ImmutableStore[("Immutable Tenant Certificate Store")]
+    end
+    
+    subgraph Egress["Secure Egress & SSRF Defense"]
+        ImmutableStore --> Dispatcher["Webhook Dispatcher"]
+        Dispatcher --> DNSFilter{"DNS & IP Validation (Block Private / Link-Local / Metadata)"}
+        DNSFilter -- "Public Valid HTTPS" --> OutboundDelivery["Deliver Signed Payload (Redact Secrets in Logs)"]
+        DNSFilter -- "Private / Invalid IP" --> BlockDelivery["Drop & Log SSRF Violation"]
+    end
+```
+
+### 9.1 Authentication, RBAC, and Tenant Isolation
+1. **API Authentication Layer:** All non-health REST endpoints require authenticated service identities passed via `X-API-Key` or `Authorization: Bearer <key>`.
+2. **Role Boundaries:**
+   - `ADMIN`: Catalog onboarding and modifications, webhook subscription management, system configuration.
+   - `INSPECTOR`: Operational return inspection (`/returns/inspect`, `/returns/inspect/upload`) and server-authorized pickup actions (`/returns/authorize-pickup`).
+   - `AUDITOR` / `READ_ONLY`: Certificate retrieval (`/audit/certificates/{id}`), PDF dossier generation, and cryptographic verification (`/audit/verify`).
+3. **Tenant Scoping:** All operations require or resolve an `X-Tenant-ID` header (defaulting to `tenant-default`). Certificate files, inspection telemetry, and catalog isolation are scoped strictly to the calling tenant's partition to prevent cross-tenant evidence leakage.
+4. **CORS Governance:** Permissive wildcard CORS (`allow_origins=["*"]`) is restricted to explicit dashboard and mobile origins defined via `RETURNSHIELD_ALLOWED_ORIGINS`.
+
+### 9.2 Critical Evidence Requirements & Fail-Closed Triage
+1. **Tri-State Check Evaluation:** Every inspection stage evaluates to `PASS`, `FAIL`, or `UNAVAILABLE`.
+2. **Fail-Closed Rule:** The engine strictly prohibits automated favorable outcomes (`FULL_REFUND` or `PARTIAL_REFUND`) when any critical evidence is missing, unreadable, or when an inspection stage encounters an internal error.
+   - If visual chassis evidence is absent or swap detector fails: status is `UNAVAILABLE`, routing to `MANUAL_SECONDARY_REVIEW`.
+   - If serial engraving is absent or unreadable: status is `UNREADABLE` / `TAMPERED`, preventing automated refund release.
+   - If no evidence is provided at all, the engine rejects the request or routes to manual review with `FraudFlag.INCOMPLETE_EVIDENCE`, never defaulting to `FraudFlag.CLEAN`.
+
+### 9.3 Doorstep PWA & Server-Authorized OTP Release
+1. **Zero Client-Side OTP Generation:** The doorstep application is strictly prohibited from generating random OTPs client-side.
+2. **Server Authorization Endpoint:** Pickup OTPs are generated exclusively by the backend via `POST /returns/authorize-pickup` after verifying an order-bound, approved return decision.
+3. **Elimination of Clean Simulation Fallback:** Offline errors or server failures immediately transition the client to an explicit "Inspection Unavailable" state that locks parcel handover and disables OTP release.
+4. **Separation of Demo Presets:** Demo presets are segregated into a clearly marked, non-operational simulation drawer with visual warning badges to ensure they cannot trigger production pickup events.
+
+### 9.4 Secure Uploads & Path Traversal Mitigations
+1. **Server-Generated Storage Identifiers:** Client-provided filenames are rejected. Uploaded multipart files are stored under server-generated UUID identifiers (`<uuid>.<validated_ext>`).
+2. **Strict File Limits & MIME Validation:** Uploads are restricted to 15 MB per file and 50 MB per request. File headers and pixel dimensions are validated via safe image decoders.
+3. **Guaranteed Staging Cleanup:** Multipart staging directories are bound to request lifecycles and deleted in `finally` blocks.
+4. **Filesystem Boundaries:** SKU identifiers and relative paths are sanitized against path traversal (`..` sequences, absolute root escapes) using strict character whitelists (`^[A-Za-z0-9_-]{3,64}$`).
+
+### 9.5 Webhook Egress & Anti-SSRF Defense
+1. **HTTPS Enforcement:** Webhook targets must use HTTPS. Insecure HTTP is disallowed by default.
+2. **Pre-Flight DNS & Network Resolution:** Prior to opening network sockets, target hostnames are resolved via DNS. All resolved IP addresses are evaluated against blocked ranges:
+   - Loopback (`127.0.0.0/8`, `::1`)
+   - Private networks (RFC 1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`)
+   - Link-local and cloud metadata (`169.254.0.0/16`, `fe80::/10`)
+   - Multicast, broadcast, and reserved blocks
+3. **Secret Redaction:** Stored webhook secret tokens are excluded from subscription listings and masked (`••••••••`).
+4. **Header Redaction:** HMAC signatures and authorization tokens are redacted from delivery logs.
+
+### 9.6 Cryptographically Signed Manifests & Immutable Evidence
+1. **Evidence Artifact Hashing:** Raw bytes of all uploaded image files (chassis crop, serial plate, tray, oblique) are hashed individually using SHA-256 and recorded in `artifact_hashes`.
+2. **Service HMAC-SHA256 Signing:** The canonical certificate payload and artifact hashes are cryptographically signed using a protected server key (`RETURNSHIELD_SIGNING_SECRET`).
+3. **Origin & Non-Repudiation:** The certificate distinguishes between the payload consistency checksum (`evidence_hash`) and the cryptographic origin seal (`service_signature`).
+4. **Immutable Certificate Store:** Certificates and manifests are persisted in an immutable tenant directory and verified by ID against the authoritative server record.
+
+### 9.7 Order-Truth Financial Model & Dynamic Summaries
+1. **Order Paid Amount as Source of Truth:** Refund calculations anchor on the actual order paid amount (`order_paid_amount`) rather than list catalog MSRP.
+2. **Policy Versioning:** The return calculation records the effective returns policy version and currency.
+3. **Approval Gates:** Deductions or fraud forfeitures exceeding policy thresholds require explicit human or returns-system approval (`requires_human_approval = True`).
+4. **Dynamic Narrative Generation:** All narrative summaries, dispute texts, and audit reports dynamically compute values and currency codes, eliminating hardcoded amounts.
+
+### 9.8 Edge Gateway Parity & Operational Boundaries
+1. **Durable Catalog Storage:** SKU onboarding in the Rust Edge Gateway atomically persists updates to disk (`catalog_db.json`).
+2. **Honest Edge Decisioning:** The Rust service explicitly abstains from claiming visual identity verification when no vision model is executed on the edge, marking visual status as unverified and routing ambiguous returns to secondary inspection rather than emitting hardcoded 0.985 similarities.
+3. **Regex Serial Enforcement:** The Rust serial verification engine compiles and evaluates SKU-specific `expected_serial_regex` patterns, rejecting invalid serial formats.
+
+

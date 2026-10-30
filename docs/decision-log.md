@@ -389,3 +389,39 @@ Implemented a targeted 4-Pillar harvester pipeline (scripts/harvest_real_world_r
 
 ### The Lesson
 > *Real return fraud occurs at the intersection of consumer wear, physical fracture, and covert component substitution. Harvesting authentic community replica teardowns, secondary resale damage, 4K liquidation video streams, and customer return evidence provides the ground-truth benchmark necessary for production triage without relying on artificial sketches or synthetic stand-ins.*
+
+
+---
+
+## ADR-015: Remediating Operational, Security, and Semantics Loopholes in ReturnShield AI
+
+- **Date:** 2026-10-30
+- **Status:** Accepted & Implemented
+- **Module:** `app/api.py`, `core/pipeline.py`, `core/disposition_engine.py`, `core/webhook_dispatcher.py`, `app/doorstep/app.js`, `edge-gateway/`
+
+### Context
+A rigorous architecture and security audit identified multiple operational vulnerabilities across the triage platform:
+1. Endpoints were unauthenticated, CORS was permissive (`*`), and data was not scoped to tenants.
+2. The pipeline caught detector errors and continued with missing inputs, allowing an empty scan to receive a favorable `FULL_REFUND` clean outcome. Rust hardcoded 0.985 OEM similarity and self-matched box barcodes.
+3. The mobile doorstep app generated local OTPs and simulated clean results upon API failures.
+4. Multipart file uploads used client-provided filenames without size limits or staging cleanup, exposing path traversal risks.
+5. Webhook dispatcher permitted loopback/private/metadata URLs (SSRF) and exposed secrets and auth headers in listings and delivery logs.
+6. Cryptographic certificates relied on an unkeyed hash of local path strings rather than signed manifests of actual evidence bytes.
+7. Financial calculations used catalog MSRP as an absolute refund basis without order truth, versioned policies, or approval gates, and summaries hardcoded dollar amounts.
+8. Rust and Python services drifted in decision semantics; Rust lacked persistence and ignored serial regex constraints.
+
+### The Block
+Fixing these vulnerabilities required coordinated updates across both Python and Rust services without breaking existing downstream integrations or degrading sub-second triage performance.
+
+### The Fix
+1. **Authenticated Service Identities & Multi-Tenant Scoping:** Implemented role-based access control (`ADMIN`, `INSPECTOR`, `AUDITOR`) with `X-API-Key` / Bearer token validation and tenant isolation via `X-Tenant-ID`. Restricted CORS to trusted origin domains.
+2. **Fail-Closed Evidence Evaluation:** Added tri-state evaluation (`pass`, `fail`, `unavailable`). Required critical visual and serial evidence for favorable automated dispositions, routing missing/failed checks to `MANUAL_SECONDARY_REVIEW`.
+3. **Server-Authorized OTPs & Doorstep Hardening:** Replaced client OTP generation with backend authorization (`POST /returns/authorize-pickup`). Removed clean simulation fallbacks from operational flows and isolated demo presets in a distinct non-operational panel.
+4. **Hardened File Ingestion:** Replaced client filenames with server-generated UUIDs, enforced 15MB file / 50MB request limits, added image validation, and guaranteed staging directory cleanup.
+5. **Anti-SSRF DNS Pre-Flight & Secret Redaction:** Added network validation blocking private, loopback, link-local, and cloud metadata addresses before dispatch. Redacted HMAC headers and masked secret tokens in API outputs.
+6. **Signed Evidence Manifests:** Added SHA-256 byte hashing of actual image evidence artifacts, signed the canonical manifest with a protected service secret (`service_signature`), and persisted records to an immutable tenant store.
+7. **Order-Bound Financial Engine:** Anchored calculations on `order_paid_amount` with versioned returns policy metadata, approval threshold gates, and dynamic currency string formatting.
+8. **Engine Semantics & Rust Parity:** Implemented durable JSON catalog persistence on Rust edge onboarding, enforced regex serial validation in Rust, and eliminated synthetic 0.985 similarity claims.
+
+### The Lesson
+> *An automated inspection system must be fail-closed by construction: absent evidence must never default to an approved payout, client devices must never authorize their own physical handovers, and cryptographic guarantees require signed manifests of raw evidence bytes rather than unkeyed checksums of ephemeral metadata.*

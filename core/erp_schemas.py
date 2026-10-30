@@ -59,6 +59,27 @@ class WebhookSubscription(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     description: Optional[str] = Field(default=None, description="Human readable label or shop domain")
 
+    def to_public_dict(self) -> Dict[str, Any]:
+        """Returns safe public dictionary with secret_token masked."""
+        d = self.model_dump(mode="json")
+        d["secret_token"] = "••••••••"
+        return d
+
+
+class WebhookSubscriptionResponse(BaseModel):
+    """Sanitized public response for webhook subscriptions concealing secret tokens."""
+    model_config = ConfigDict(extra="ignore")
+
+    subscription_id: str
+    platform: ERPPlatform = ERPPlatform.CUSTOM
+    target_url: str
+    secret_token: str = Field(default="••••••••", description="Masked secret token")
+    subscribed_events: List[WebhookEvent] = Field(default_factory=list)
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    description: Optional[str] = None
+
+
 
 class CanonicalWebhookPayload(BaseModel):
     """Canonical, normalized outbound event payload dispatched to ERP listeners."""

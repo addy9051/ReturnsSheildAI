@@ -242,6 +242,10 @@ class CatalogManager:
             raise TypeError(f"Invalid profile_data type: {type(profile_data)}")
 
         sku_id = profile.sku_id
+        import re
+        if not re.match(r"^[A-Za-z0-9_-]{2,64}$", sku_id):
+            raise ValueError(f"Invalid SKU ID format: '{sku_id}'. Only alphanumeric, hyphens, and underscores allowed.")
+
         sku_img_dir = self.images_dir / sku_id
         sku_img_dir.mkdir(parents=True, exist_ok=True)
 
@@ -258,6 +262,10 @@ class CatalogManager:
 
                 if isinstance(img_item, (str, Path)):
                     src_path = Path(img_item)
+                    if ".." in str(src_path) or "\x00" in str(src_path):
+                        raise ValueError(f"Path traversal detected in reference image path: {src_path}")
+                    if not src_path.is_file():
+                        raise FileNotFoundError(f"Reference image not found: {src_path}")
                     if src_path.resolve() != target_path.resolve():
                         img_obj = Image.open(src_path).convert("RGB")
                         img_obj.save(target_path, "PNG")

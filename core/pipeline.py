@@ -18,6 +18,8 @@ from core.catalog_manager import CatalogManager
 from core.disposition_engine import DispositionEngine
 from core.kitting_auditor import KittingAuditor
 from core.schemas import (
+    CheckStatus,
+    IdentityMatchStatus,
     ReturnInspectionRequest,
     ReturnInspectionResult,
 )
@@ -71,6 +73,7 @@ class ReturnTriagePipeline:
             raise KeyError(f"SKU '{sku_id}' is not registered in catalog database.")
 
         evidence_snapshots = {}
+        stage_checks: Dict[str, CheckStatus] = {}
 
         # 1. Visual Identity & Swap Detection
         swap_result = None
@@ -85,8 +88,15 @@ class ReturnTriagePipeline:
                 )
                 if swap_result.heatmap_path:
                     evidence_snapshots["swap_heatmap"] = swap_result.heatmap_path
+                stage_checks["visual_identity"] = (
+                    CheckStatus.PASS if swap_result.identity_status == IdentityMatchStatus.VERIFIED_OEM
+                    else CheckStatus.FAIL
+                )
             except Exception as err:
                 logger.error("Swap detector failed for RMA '%s': %s", request.rma_number, err)
+                stage_checks["visual_identity"] = CheckStatus.UNAVAILABLE
+        else:
+            stage_checks["visual_identity"] = CheckStatus.UNAVAILABLE
 
         # 2. Dual-Serial Number Verification
         serial_result = None
@@ -96,15 +106,22 @@ class ReturnTriagePipeline:
         if request.serial_plate_crop_path:
             evidence_snapshots["serial_plate"] = str(request.serial_plate_crop_path)
 
-        if box_input or chassis_serial_input:
+        if box_input or chassis_serial_input or request.expected_customer_serial:
             try:
                 serial_result = self.serial_verifier.verify_serials(
                     box_barcode_input=box_input,
                     chassis_serial_input=chassis_serial_input,
                     expected_regex=profile.expected_serial_regex,
+                    expected_customer_serial=request.expected_customer_serial,
+                )
+                stage_checks["serial_verification"] = (
+                    CheckStatus.PASS if serial_result.is_match else CheckStatus.FAIL
                 )
             except Exception as err:
                 logger.error("Serial verifier failed for RMA '%s': %s", request.rma_number, err)
+                stage_checks["serial_verification"] = CheckStatus.UNAVAILABLE
+        else:
+            stage_checks["serial_verification"] = CheckStatus.UNAVAILABLE
 
         # 3. Kitting Tray & BOM Checklist Audit
         kitting_result = None
@@ -117,8 +134,12 @@ class ReturnTriagePipeline:
                 tray_input=tray_input,
                 sku_id=sku_id,
             )
+            stage_checks["kitting_audit"] = (
+                CheckStatus.PASS if kitting_result.all_items_present else CheckStatus.FAIL
+            )
         except Exception as err:
             logger.error("Kitting auditor failed for RMA '%s': %s", request.rma_number, err)
+            stage_checks["kitting_audit"] = CheckStatus.UNAVAILABLE
 
         # 4. Multi-Angle Oblique & Volumetric Stereo Inspection
         volumetric_result = None
@@ -205,6 +226,10 @@ class ReturnTriagePipeline:
             surface_wear_score=surface_wear_score,
             evidence_snapshot_paths=evidence_snapshots,
             volumetric_result=volumetric_result,
+            order_paid_amount=request.order_paid_amount,
+            currency=request.currency,
+            policy_version=request.returns_policy_version,
+            tenant_id=request.tenant_id,
         )
 
         processing_time_ms = round((time.time() - start_time) * 1000.0, 2)
@@ -212,8 +237,10 @@ class ReturnTriagePipeline:
         return ReturnInspectionResult(
             rma_number=request.rma_number,
             sku_id=sku_id,
+            tenant_id=request.tenant_id,
             fraud_flags=certificate.fraud_flags,
             is_fraud=(disposition.action.value == "REJECT_FRAUD_HOLD"),
+            stage_checks=stage_checks,
             swap_result=swap_result,
             serial_result=serial_result,
             kitting_result=kitting_result,

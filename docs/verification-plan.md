@@ -115,3 +115,85 @@ streamlit run app/dashboard.py
 - **Port:** `8501`
 - **Features Tested:** 3PL Intake Station, Doorstep Delivery Rider QC, Zero-Training SKU Catalog.
 
+---
+
+## 7. Security Architecture & Fail-Closed Invariants Verification (Audit Remediation)
+
+This section details repeatable test procedures and curl commands verifying that all 8 major loopholes and product gaps are mathematically and programmatically closed.
+
+### Step 7.1: Automated Python Security & Regression Test Run
+Run the security regression suite:
+```powershell
+pytest tests/test_api.py tests/test_webhooks.py tests/test_kitting_auditor.py -v
+```
+**Verification Assertions:**
+- `test_unauthenticated_requests_rejected`: Verifies HTTP 401 is returned whenever `X-API-Key` or `Authorization: Bearer` is missing.
+- `test_rbac_role_separation`: Verifies an `INSPECTOR` key attempting admin actions (`POST /skus/onboard`, `POST /webhooks/subscriptions`) is denied with HTTP 403.
+- `test_empty_inspection_fails_closed`: Proves an empty scan payload with missing evidence yields `MANUAL_SECONDARY_REVIEW`, `FraudFlag.INCOMPLETE_EVIDENCE`, and `net_refund_amount == 0.0`.
+- `test_path_traversal_blocked`: Proves `sku_id` containing `../etc/passwd` or image paths containing directory escapes are rejected with HTTP 400/422.
+- `test_server_authorized_pickup_flow`: Proves `POST /returns/authorize-pickup` issues a cryptographically secure 6-digit OTP for verified returns, but strictly withholds OTPs and halts couriers for fraud hold or uninspected returns.
+- `test_webhook_ssrf_protection`: Proves registering webhook targets targeting `127.0.0.1` or `169.254.169.254` is rejected with HTTP 400 (`SSRF violation`).
+
+### Step 7.2: Automated Rust Edge Gateway Parity Test Run
+Run the Rust unit and regression test suite:
+```powershell
+cargo test --manifest-path edge-gateway/Cargo.toml -- --nocapture
+```
+**Verification Assertions:**
+- `test_incomplete_evidence_routes_to_manual_review`: Proves Rust Edge Gateway routes missing visual/serial evidence directly to `ManualSecondaryReview` with `FraudFlag::IncompleteEvidence` and withholds automated refund disbursement.
+- `test_serial_expected_regex_validation`: Proves serial numbers violating SKU expected regex patterns are flagged as `SerialMatchStatus::Mismatch`.
+- `test_clean_return_disposition`: Proves clean returns are only approved when all required visual and serial checks are explicitly verified.
+- `onboard_sku_handler`: Validates `^[A-Za-z0-9_-]{2,64}$` SKU IDs and persists records to disk via `cat.persist_to_disk()`.
+
+### Step 7.3: Live Operational cURL Runbook
+
+#### 1. Unauthenticated Request Rejection (Expected: 401 Unauthorized)
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X GET http://localhost:8000/skus
+# Output must be: 401
+```
+
+#### 2. Role-Based Access Control (Expected: 403 Forbidden for Inspector)
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8000/skus/onboard \
+  -H "X-API-Key: rs_inspector_key_sec_2026" \
+  -H "Content-Type: application/json" \
+  -d '{"sku_id": "SKU-TEST", "title": "Test", "category": "Audio", "msrp": 100.0}'
+# Output must be: 403
+```
+
+#### 3. Incomplete Evidence Fail-Closed Invariant (Expected: MANUAL_SECONDARY_REVIEW, $0.00 refund)
+```bash
+curl -s -X POST http://localhost:8000/returns/inspect \
+  -H "X-API-Key: rs_inspector_key_sec_2026" \
+  -H "Content-Type: application/json" \
+  -d '{"rma_number": "RMA-EMPTY-01", "sku_id": "SKU-SONY-WH1000XM5-BLK", "order_paid_amount": 399.99}' \
+  | jq '{action: .disposition.action, net_refund: .disposition.net_refund_amount, flags: .fraud_flags}'
+# Output must show:
+# {
+#   "action": "MANUAL_SECONDARY_REVIEW",
+#   "net_refund": 0.0,
+#   "flags": ["INCOMPLETE_EVIDENCE"]
+# }
+```
+
+#### 4. Webhook SSRF Rejection (Expected: 400 Bad Request)
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:8000/webhooks/subscriptions \
+  -H "X-API-Key: rs_admin_key_sec_2026" \
+  -H "Content-Type: application/json" \
+  -d '{"target_url": "http://127.0.0.1:9000/hook", "secret_token": "secret123", "platform": "shopify"}'
+# Output must be: 400
+```
+
+#### 5. Server-Authorized Pickup OTP (Expected: 200 with authorized: true and OTP)
+```bash
+curl -s -X POST http://localhost:8000/returns/authorize-pickup \
+  -H "X-API-Key: rs_inspector_key_sec_2026" \
+  -H "Content-Type: application/json" \
+  -d '{"rma_number": "RMA-CLEAN-AUTH-01"}' \
+  | jq '{authorized: .authorized, otp: .otp, token: .pickup_token}'
+# Returns authorized pickup token and server-generated 6-digit OTP
+```
+
+

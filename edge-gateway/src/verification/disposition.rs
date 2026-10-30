@@ -33,11 +33,16 @@ impl DispositionEngine {
         condition_grade: ConditionGrade,
     ) -> Vec<FraudFlag> {
         let mut flags = Vec::new();
+        let mut has_incomplete_evidence = false;
 
         if let Some(res) = swap_result {
             if res.identity_status == IdentityMatchStatus::ConfirmedSwap {
                 flags.push(FraudFlag::BaitAndSwitch);
+            } else if res.identity_status == IdentityMatchStatus::Unverified {
+                has_incomplete_evidence = true;
             }
+        } else {
+            has_incomplete_evidence = true;
         }
 
         if let Some(res) = serial_result {
@@ -47,6 +52,11 @@ impl DispositionEngine {
             if res.match_status == SerialMatchStatus::OcrUnreadable {
                 flags.push(FraudFlag::TamperedSerialLabel);
             }
+            if res.match_status == SerialMatchStatus::MissingLabel {
+                has_incomplete_evidence = true;
+            }
+        } else {
+            has_incomplete_evidence = true;
         }
 
         if let Some(res) = kitting_result {
@@ -57,6 +67,10 @@ impl DispositionEngine {
 
         if condition_grade == ConditionGrade::GradeC {
             flags.push(FraudFlag::PhysicalDamage);
+        }
+
+        if has_incomplete_evidence {
+            flags.push(FraudFlag::IncompleteEvidence);
         }
 
         if flags.is_empty() {
@@ -164,8 +178,19 @@ impl DispositionEngine {
             let is_suspected_swap = swap_result.map_or(false, |r| {
                 r.identity_status == IdentityMatchStatus::SuspectedSwap
             });
+            let has_incomplete_evidence = fraud_flags.contains(&FraudFlag::IncompleteEvidence);
 
-            if is_suspected_swap {
+            if has_incomplete_evidence {
+                (
+                    DispositionAction::ManualSecondaryReview,
+                    total,
+                    0.0,
+                    format!(
+                        "MANUAL REVIEW REQUIRED: Return {} has incomplete or unverified inspection evidence. Automated refund withheld pending review.",
+                        rma_number
+                    ),
+                )
+            } else if is_suspected_swap {
                 (
                     DispositionAction::ManualSecondaryReview,
                     total,

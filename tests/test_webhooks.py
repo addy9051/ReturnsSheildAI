@@ -313,9 +313,9 @@ async def test_webhook_dispatcher_retry_on_server_error(tmp_path: Path, clean_ca
 
 @pytest.fixture
 def api_client():
-    """Provides a TestClient instance with lifespan management for FastAPI testing."""
+    """Provides a TestClient instance with admin credentials for FastAPI testing."""
     from fastapi.testclient import TestClient
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-API-Key": "rs_admin_key_sec_2026", "X-Tenant-ID": "tenant_test"}) as client:
         yield client
 
 

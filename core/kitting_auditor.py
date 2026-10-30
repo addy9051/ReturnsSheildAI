@@ -70,7 +70,7 @@ class KittingAuditor:
 
     @staticmethod
     def compute_slot_metrics(slot_bgr: np.ndarray) -> Tuple[float, float]:
-        """Computes edge gradient energy and Shannon luminance entropy for a tray sub-region.
+        """Computes edge gradient energy and Shannon luminance entropy for a tray slot.
 
         Why: An empty molded foam cavity exhibits near-uniform surface color and minimal
         internal high-frequency gradients. A slot populated with a coiled cable, adapter,
@@ -90,6 +90,41 @@ class KittingAuditor:
         entropy = float(-np.sum(hist * np.log2(hist)))
 
         return edge_energy, entropy
+
+    @staticmethod
+    def compute_color_variance(slot_bgr: np.ndarray) -> float:
+        """Computes color standard deviation across RGB channels to distinguish foam from accessories."""
+        return float(np.mean([np.std(slot_bgr[:, :, c]) for c in range(3)]))
+
+    def extract_slot_crops(
+        self,
+        tray_bgr: np.ndarray,
+        bom: List[BOMItem],
+        sku_metadata: Optional[Dict[str, Any]] = None,
+    ) -> List[np.ndarray]:
+        """Extracts slot crops either via SKU-configured ROI bounding boxes or spatial partitioning."""
+        h, w = tray_bgr.shape[:2]
+        slots = []
+
+        # Check for explicit SKU-specific slot ROIs in metadata
+        configured_rois = (sku_metadata or {}).get("slot_rois", {})
+        if configured_rois and isinstance(configured_rois, dict):
+            for item in bom:
+                if item.item_id in configured_rois:
+                    roi = configured_rois[item.item_id]  # [x1, y1, x2, y2] normalized or pixels
+                    if len(roi) == 4:
+                        x1, y1, x2, y2 = roi
+                        if all(0.0 <= val <= 1.0 for val in roi):
+                            x1, y1, x2, y2 = int(x1 * w), int(y1 * h), int(x2 * w), int(y2 * h)
+                        crop = tray_bgr[max(0, y1):min(h, y2), max(0, x1):min(w, x2)]
+                        if crop.size > 0:
+                            slots.append(crop)
+                            continue
+                # Fallback to partition
+                slots.append(self.partition_tray_slots(tray_bgr, len(bom))[min(len(slots), len(bom)-1)])
+            return slots
+
+        return self.partition_tray_slots(tray_bgr, len(bom))
 
     def partition_tray_slots(
         self,
@@ -192,17 +227,19 @@ class KittingAuditor:
         # Mode B: Image-based visual tray inspection
         elif tray_input is not None:
             tray_bgr = self._load_tray_image(tray_input)
-            slot_crops = self.partition_tray_slots(tray_bgr, len(bom))
+            sku_metadata = profile.metadata if profile else {}
+            slot_crops = self.extract_slot_crops(tray_bgr, bom, sku_metadata=sku_metadata)
 
             for idx, item in enumerate(bom):
                 if idx < len(slot_crops):
                     slot_bgr = slot_crops[idx]
                     edge_energy, entropy = self.compute_slot_metrics(slot_bgr)
+                    color_std = self.compute_color_variance(slot_bgr)
 
                     # Populated slots exhibit significant internal edge complexity and entropy
                     is_populated = (
-                        edge_energy >= self.edge_energy_threshold or
-                        entropy >= self.entropy_threshold
+                        (edge_energy >= self.edge_energy_threshold or entropy >= self.entropy_threshold)
+                        and color_std >= 6.0
                     )
                     conf = min(1.0, max(0.60, edge_energy / (self.edge_energy_threshold * 1.5)))
 

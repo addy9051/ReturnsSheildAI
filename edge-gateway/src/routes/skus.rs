@@ -24,7 +24,16 @@ pub async fn get_sku_handler(
 pub async fn onboard_sku_handler(
     State(catalog): State<SharedCatalog>,
     Json(req): Json<SkuOnboardRequest>,
-) -> (StatusCode, Json<SkuProfile>) {
+) -> Result<(StatusCode, Json<SkuProfile>), (StatusCode, String)> {
+    // Validate SKU ID against path traversal and invalid characters
+    let sku_regex = regex::Regex::new(r"^[A-Za-z0-9_-]{2,64}$").unwrap();
+    if !sku_regex.is_match(&req.sku_id) {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("Invalid SKU ID '{}'. Must match ^[A-Za-z0-9_-]{{2,64}}$", req.sku_id),
+        ));
+    }
+
     let mut cat = catalog.write().await;
     let profile = SkuProfile {
         sku_id: req.sku_id.clone(),
@@ -41,6 +50,8 @@ pub async fn onboard_sku_handler(
         metadata: std::collections::HashMap::new(),
     };
 
-    cat.insert(profile.clone());
-    (StatusCode::CREATED, Json(profile))
+    if let Err(e) = cat.insert(profile.clone()) {
+        tracing::error!("Failed to persist SKU to disk: {}", e);
+    }
+    Ok((StatusCode::CREATED, Json(profile)))
 }

@@ -10,8 +10,10 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 import hashlib
+import hmac
 import json
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -33,6 +35,14 @@ class FraudFlag(str, Enum):
     PHYSICAL_DAMAGE = "PHYSICAL_DAMAGE"
     TAMPERED_SERIAL_LABEL = "TAMPERED_SERIAL_LABEL"
     COUNTERFEIT = "COUNTERFEIT"
+    INCOMPLETE_EVIDENCE = "INCOMPLETE_EVIDENCE"
+
+
+class CheckStatus(str, Enum):
+    """Evaluation status for an individual inspection stage or detector."""
+    PASS = "PASS"
+    FAIL = "FAIL"
+    UNAVAILABLE = "UNAVAILABLE"
 
 
 class ConditionGrade(str, Enum):
@@ -97,7 +107,7 @@ class SKUProfile(BaseModel):
     """Complete registered SKU profile in catalog."""
     model_config = ConfigDict(extra="ignore")
 
-    sku_id: str = Field(..., description="Unique SKU identifier, e.g. 'SKU-SONY-WH1000XM5-BLK'")
+    sku_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]{2,64}$", description="Unique SKU identifier, e.g. 'SKU-SONY-WH1000XM5-BLK'")
     title: str = Field(..., description="Product commercial title")
     category: str = Field(..., description="E-commerce taxonomy category")
     msrp: float = Field(..., gt=0.0, description="Manufacturer Suggested Retail Price in USD")
@@ -110,12 +120,20 @@ class SKUProfile(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("reference_image_paths", mode="after")
+    @classmethod
+    def validate_reference_paths(cls, paths: List[str]) -> List[str]:
+        for p in paths:
+            if ".." in p or "\x00" in p:
+                raise ValueError(f"Path traversal detected in reference image path: {p}")
+        return paths
+
 
 class SKUOnboardRequest(BaseModel):
     """Payload to register or update an SKU in the catalog."""
     model_config = ConfigDict(extra="ignore")
 
-    sku_id: str = Field(..., description="Unique SKU identifier")
+    sku_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]{2,64}$", description="Unique SKU identifier")
     title: str = Field(..., description="Product title")
     category: str = Field(..., description="Category name")
     msrp: float = Field(..., gt=0.0, description="MSRP value ($)")
@@ -125,6 +143,15 @@ class SKUOnboardRequest(BaseModel):
     reference_image_paths: List[str] = Field(default_factory=list)
     similarity_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("reference_image_paths", mode="after")
+    @classmethod
+    def validate_reference_paths(cls, paths: List[str]) -> List[str]:
+        for p in paths:
+            if ".." in p or "\x00" in p:
+                raise ValueError(f"Path traversal detected in reference image path: {p}")
+        return paths
+
 
 
 class SKUEmbeddingRecord(BaseModel):
@@ -149,7 +176,11 @@ class ReturnInspectionRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     rma_number: str = Field(..., description="Customer return authorization / order ID")
-    sku_id: str = Field(..., description="Catalog SKU identifier")
+    sku_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]{2,64}$", description="Catalog SKU identifier")
+    tenant_id: str = Field(default="tenant-default", pattern=r"^[A-Za-z0-9_-]{2,64}$", description="Multi-tenant account identifier")
+    order_paid_amount: Optional[float] = Field(default=None, ge=0.0, description="Actual order paid amount (source of truth)")
+    currency: str = Field(default="USD", description="Currency ISO code")
+    returns_policy_version: str = Field(default="2026.1", description="Effective versioned returns policy")
     expected_customer_serial: Optional[str] = Field(default=None, description="Serial number from original customer invoice")
     box_barcode_raw: Optional[str] = Field(default=None, description="Raw scanned barcode from shipping/outer box")
     overhead_image_path: Optional[str] = Field(default=None, description="Full bench overhead camera capture")
@@ -159,6 +190,14 @@ class ReturnInspectionRequest(BaseModel):
     oblique_image_path: Optional[str] = Field(default=None, description="45-degree lateral/oblique camera capture for port & hinge inspection")
     operator_id: Optional[str] = Field(default="OPERATOR-01", description="3PL warehouse inspector ID")
     bench_id: Optional[str] = Field(default="BENCH-01", description="Workstation station ID")
+
+    @field_validator("overhead_image_path", "chassis_crop_path", "serial_plate_crop_path", "tray_crop_path", "oblique_image_path", mode="after")
+    @classmethod
+    def validate_safe_input_path(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            if ".." in v or "\x00" in v:
+                raise ValueError(f"Path traversal sequence detected in image path: {v}")
+        return v
 
 
 class SwapDetectionResult(BaseModel):
@@ -183,6 +222,9 @@ class SerialVerificationResult(BaseModel):
     chassis_serial_normalized: Optional[str] = None
     match_status: SerialMatchStatus
     is_match: bool = Field(..., description="True if serials match exactly or within normalized OCR variance")
+    format_valid: bool = Field(default=True, description="True if serials match SKU expected regex pattern")
+    box_to_chassis_match: bool = Field(default=False, description="True if box barcode matches physical chassis engraving")
+    order_serial_match: Optional[bool] = Field(default=None, description="True if physical chassis matches order-expected customer serial")
     similarity_ratio: float = Field(default=1.0, ge=0.0, le=1.0, description="String distance ratio between barcodes")
     ocr_confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence of chassis serial OCR read")
     notes: str = Field(default="", description="Detailed serial matching notes")
@@ -227,8 +269,14 @@ class DispositionResult(BaseModel):
     action: DispositionAction
     condition_grade: ConditionGrade
     original_msrp: float = Field(..., ge=0.0)
+    basis_amount: Optional[float] = Field(default=None, ge=0.0, description="Financial refund basis amount")
+    basis_type: str = Field(default="CATALOG_MSRP", description="Basis type: ORDER_PAID or CATALOG_MSRP")
+    currency: str = Field(default="USD", description="Currency ISO code")
+    policy_version: str = Field(default="2026.1", description="Effective versioned returns policy")
     total_deductions: float = Field(..., ge=0.0)
     net_refund_amount: float = Field(..., ge=0.0)
+    requires_human_approval: bool = Field(default=False, description="True if deductions or holds require manual sign-off")
+    approval_reason: Optional[str] = Field(default=None, description="Reason manual approval is required")
     deduction_breakdown: List[ItemizedDeduction] = Field(default_factory=list)
     recommendation_summary: str = Field(...)
 
@@ -238,22 +286,59 @@ class AuditEvidenceCertificate(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     certificate_id: str = Field(default_factory=lambda: f"CERT-{uuid.uuid4().hex[:12].upper()}")
+    tenant_id: str = Field(default="tenant-default", description="Tenant account identifier")
     rma_number: str
     sku_id: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     disposition_action: DispositionAction
     condition_grade: ConditionGrade
     fraud_flags: List[FraudFlag] = Field(default_factory=list)
-    evidence_hash: str = Field(..., description="SHA-256 hash digest of all inspection evidence")
+    evidence_hash: str = Field(..., description="Deterministic SHA-256 consistency checksum of inspection record")
+    artifact_hashes: Dict[str, str] = Field(default_factory=dict, description="SHA-256 byte digests of raw visual evidence artifacts")
+    service_signature: Optional[str] = Field(default=None, description="HMAC-SHA256 signature from ReturnShield service key")
+    signing_algorithm: str = Field(default="HMAC-SHA256")
     evidence_snapshot_paths: Dict[str, str] = Field(default_factory=dict)
     audit_narrative: str
     dispute_ready_payload: Dict[str, Any] = Field(default_factory=dict)
+
+    @staticmethod
+    def compute_file_sha256(file_path: Union[str, Path]) -> str:
+        """Computes SHA-256 digest of raw file bytes."""
+        p = Path(file_path)
+        if not p.is_file():
+            return ""
+        h = hashlib.sha256()
+        with open(p, "rb") as f:
+            while chunk := f.read(65536):
+                h.update(chunk)
+        return h.hexdigest()
 
     @staticmethod
     def compute_evidence_hash(payload: Dict[str, Any]) -> str:
         """Computes deterministic SHA-256 hash digest of evidence dictionary."""
         serialized = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
         return hashlib.sha256(serialized).hexdigest()
+
+    @staticmethod
+    def sign_manifest(payload: Dict[str, Any], artifact_hashes: Dict[str, str], secret: str) -> str:
+        """Signs canonical payload and evidence artifact hashes with service secret."""
+        bundle = {
+            "payload": payload,
+            "artifact_hashes": artifact_hashes,
+        }
+        serialized = json.dumps(bundle, sort_keys=True, default=str).encode("utf-8")
+        return hmac.new(secret.encode("utf-8"), serialized, hashlib.sha256).hexdigest()
+
+    @staticmethod
+    def verify_manifest_signature(
+        payload: Dict[str, Any],
+        artifact_hashes: Dict[str, str],
+        signature: str,
+        secret: str,
+    ) -> bool:
+        """Verifies HMAC-SHA256 signature against payload and artifact hashes."""
+        expected = AuditEvidenceCertificate.sign_manifest(payload, artifact_hashes, secret)
+        return hmac.compare_digest(expected, signature)
 
 
 class ReturnInspectionResult(BaseModel):
@@ -263,9 +348,11 @@ class ReturnInspectionResult(BaseModel):
     inspection_id: str = Field(default_factory=lambda: f"INSP-{uuid.uuid4().hex[:10].upper()}")
     rma_number: str
     sku_id: str
+    tenant_id: str = Field(default="tenant-default", description="Tenant account identifier")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     fraud_flags: List[FraudFlag] = Field(default_factory=list)
     is_fraud: bool = Field(default=False)
+    stage_checks: Dict[str, CheckStatus] = Field(default_factory=dict, description="Stage-by-stage check evaluation (PASS, FAIL, UNAVAILABLE)")
     swap_result: Optional[SwapDetectionResult] = None
     serial_result: Optional[SerialVerificationResult] = None
     kitting_result: Optional[KittingAuditResult] = None
@@ -286,6 +373,7 @@ class ReturnInspectionResult(BaseModel):
         if has_fraud_flags:
             self.is_fraud = True
         return self
+
 
 
 # ==============================================================================

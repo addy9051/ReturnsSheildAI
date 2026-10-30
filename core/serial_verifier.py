@@ -277,6 +277,7 @@ class SerialVerifier:
         box_barcode_input: Union[str, Path, Image.Image, np.ndarray, None],
         chassis_serial_input: Union[str, Path, Image.Image, np.ndarray, None],
         expected_regex: Optional[str] = None,
+        expected_customer_serial: Optional[str] = None,
     ) -> SerialVerificationResult:
         """Executes dual-serial cross-verification between outer box and product chassis.
 
@@ -284,6 +285,7 @@ class SerialVerifier:
             box_barcode_input: Box shipping barcode image or decoded string.
             chassis_serial_input: Chassis serial plate crop image or OCR string.
             expected_regex: Expected serial number regex pattern for format validation.
+            expected_customer_serial: Serial number from authoritative customer order record.
 
         Returns:
             SerialVerificationResult with match status, similarity ratio, and OCR confidence.
@@ -308,17 +310,28 @@ class SerialVerifier:
                 chassis_serial_normalized=None,
                 match_status=SerialMatchStatus.MISSING_LABEL,
                 is_match=False,
+                format_valid=False,
+                box_to_chassis_match=False,
+                order_serial_match=False if expected_customer_serial else None,
                 similarity_ratio=0.0,
                 ocr_confidence=0.0,
                 notes="Neither box barcode nor chassis serial plate could be read.",
             )
         elif not box_raw:
+            chassis_norm = self.normalize_serial(chassis_raw)
+            order_match = None
+            if expected_customer_serial:
+                exp_norm = self.normalize_serial(expected_customer_serial)
+                order_match = (chassis_norm == exp_norm)
             return SerialVerificationResult(
                 box_barcode=None,
                 chassis_serial_raw=chassis_raw,
-                chassis_serial_normalized=self.normalize_serial(chassis_raw),
+                chassis_serial_normalized=chassis_norm,
                 match_status=SerialMatchStatus.MISSING_LABEL,
                 is_match=False,
+                format_valid=True,
+                box_to_chassis_match=False,
+                order_serial_match=order_match,
                 similarity_ratio=0.0,
                 ocr_confidence=chassis_conf,
                 notes="Box barcode is missing or unreadable.",
@@ -330,6 +343,9 @@ class SerialVerifier:
                 chassis_serial_normalized=None,
                 match_status=SerialMatchStatus.OCR_UNREADABLE,
                 is_match=False,
+                format_valid=False,
+                box_to_chassis_match=False,
+                order_serial_match=False if expected_customer_serial else None,
                 similarity_ratio=0.0,
                 ocr_confidence=0.0,
                 notes="Chassis serial plate is unreadable, scratched, or missing.",
@@ -365,9 +381,36 @@ class SerialVerifier:
                 f"does not match chassis serial '{chassis_norm}' (WeightedDist: {weighted_dist:.2f})."
             )
 
+        box_to_chassis_match = is_match
+
+        # 7. Validate format against expected regex
+        format_valid = True
+        regex_to_check = expected_regex or self.default_regex
+        if regex_to_check and chassis_norm:
+            try:
+                format_valid = bool(re.search(regex_to_check, chassis_norm))
+            except Exception:
+                format_valid = True
+        if not format_valid:
+            notes += f" | Regex Violation: Serial '{chassis_norm}' does not match pattern '{regex_to_check}'."
+
+        # 8. Cross-check against authoritative order-expected serial
+        order_serial_match: Optional[bool] = None
+        if expected_customer_serial:
+            exp_norm = self.normalize_serial(expected_customer_serial)
+            if exp_norm:
+                order_weighted = self.compute_weighted_distance(chassis_norm, exp_norm)
+                order_max_len = max(len(chassis_norm), len(exp_norm), 1)
+                order_sim = max(0.0, min(1.0, 1.0 - (order_weighted / float(order_max_len))))
+                order_serial_match = (chassis_norm == exp_norm) or (order_weighted <= 0.60 and order_sim >= 0.85)
+                if not order_serial_match:
+                    is_match = False
+                    status = SerialMatchStatus.MISMATCH
+                    notes += f" | Order Mismatch: Physical chassis serial '{chassis_norm}' does not match customer invoice record '{exp_norm}'."
+
         logger.info(
-            "Serial verification: %s (Box='%s', Chassis='%s', Sim=%.3f)",
-            status.value, box_norm, chassis_norm, similarity_ratio
+            "Serial verification: %s (Box='%s', Chassis='%s', Sim=%.3f, OrderMatch=%s)",
+            status.value, box_norm, chassis_norm, similarity_ratio, order_serial_match
         )
 
         return SerialVerificationResult(
@@ -376,6 +419,9 @@ class SerialVerifier:
             chassis_serial_normalized=chassis_norm,
             match_status=status,
             is_match=is_match,
+            format_valid=format_valid,
+            box_to_chassis_match=box_to_chassis_match,
+            order_serial_match=order_serial_match,
             similarity_ratio=round(similarity_ratio, 4),
             ocr_confidence=round(chassis_conf, 4),
             notes=notes,

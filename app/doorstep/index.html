@@ -97,18 +97,22 @@
       <button class="icon-btn" id="btnFlipCamera" title="Switch Camera">🔄</button>
     </section>
 
-    <!-- Quick Simulation Presets (For Testing / Demonstrations) -->
-    <section>
-      <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; text-transform: uppercase;">
-        ⚡ Instant Doorstep Test Presets
+    <!-- Non-Operational Demo Presets -->
+    <details class="demo-only-panel" style="margin-top: 12px; border: 1px dashed #f59e0b; border-radius: 8px; padding: 10px; background: rgba(245, 158, 11, 0.05);">
+      <summary style="font-size: 11px; color: #f59e0b; font-weight: 700; cursor: pointer; text-transform: uppercase;">
+        🧪 Demo Simulation Mode (Non-Operational / Testing Only)
+      </summary>
+      <div style="font-size: 10px; color: var(--text-muted); margin: 6px 0;">
+        ⚠️ Warning: Presets simulate client-side triage for demonstrations. They do not invoke production backend gates or authorize real courier parcel pickups.
       </div>
       <div class="sim-strip">
-        <button class="sim-pill" id="presetClean">🟢 Genuine Sony XM5 (Pass)</button>
-        <button class="sim-pill" id="presetSwap">🔴 Lookalike Swap (Reject)</button>
-        <button class="sim-pill" id="presetSerialMismatch">🔴 Stolen / Mismatched Serial</button>
-        <button class="sim-pill" id="presetMissingBOM">🟡 Missing Braided Cable</button>
+        <button class="sim-pill" id="presetClean">🟢 Genuine Sony XM5 (Demo)</button>
+        <button class="sim-pill" id="presetSwap">🔴 Lookalike Swap (Demo)</button>
+        <button class="sim-pill" id="presetSerialMismatch">🔴 Serial Mismatch (Demo)</button>
+        <button class="sim-pill" id="presetMissingBOM">🟡 Missing Cable (Demo)</button>
       </div>
-    </section>
+    </details>
+
 
   </main>
 

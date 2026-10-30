@@ -38,3 +38,15 @@ fn test_serial_genuine_mismatch() {
     assert!(res.similarity_ratio < 0.70);
 }
 
+#[test]
+fn test_serial_expected_regex_validation() {
+    let box_code = "INVALID_SERIAL";
+    let chassis_ocr = "INVALID_SERIAL";
+    let regex_pattern = r"^SN-[A-Z]{3}-\d{6}$";
+
+    let res = SerialVerifier::verify(Some(box_code), Some(chassis_ocr), Some(regex_pattern));
+    assert!(!res.is_match);
+    assert_eq!(res.match_status, SerialMatchStatus::Mismatch);
+    assert!(res.notes.contains("format violation"));
+}
+

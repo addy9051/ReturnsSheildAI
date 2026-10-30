@@ -77,7 +77,7 @@ impl SerialVerifier {
     pub fn verify(
         box_barcode_raw: Option<&str>,
         chassis_serial_raw: Option<&str>,
-        _expected_regex: Option<&str>,
+        expected_regex: Option<&str>,
     ) -> SerialVerificationResult {
         let box_s = match box_barcode_raw {
             Some(s) if !s.trim().is_empty() => s.trim(),
@@ -113,6 +113,27 @@ impl SerialVerifier {
 
         let norm_box = Self::normalize(box_s);
         let norm_chassis = Self::normalize(chassis_s);
+
+        // Validate against SKU expected serial regex format
+        if let Some(pattern) = expected_regex {
+            if let Ok(re) = regex::Regex::new(pattern) {
+                if !re.is_match(chassis_s) && !re.is_match(&norm_chassis) {
+                    return SerialVerificationResult {
+                        box_barcode: Some(box_s.to_string()),
+                        chassis_serial_raw: Some(chassis_s.to_string()),
+                        chassis_serial_normalized: Some(norm_chassis),
+                        match_status: SerialMatchStatus::Mismatch,
+                        is_match: false,
+                        similarity_ratio: 0.0,
+                        ocr_confidence: 0.90,
+                        notes: format!(
+                            "Serial format violation: '{}' does not match expected pattern '{}'.",
+                            chassis_s, pattern
+                        ),
+                    };
+                }
+            }
+        }
 
         if norm_box == norm_chassis {
             return SerialVerificationResult {
